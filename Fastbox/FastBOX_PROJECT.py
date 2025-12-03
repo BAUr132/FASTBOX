@@ -1,10 +1,9 @@
 import time
-import json
 import requests
 from dataclasses import dataclass, field
 from enum import Enum
 from datetime import datetime
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Set
 
 # ==============================
 # НАСТРОЙКИ
@@ -12,6 +11,13 @@ from typing import Dict, List, Optional
 
 BOT_TOKEN = "8571414658:AAG3-A-zzxoBIqxt9FqGewSKViHk5rSCtg0"  # <-- ВСТАВЬ СВОЙ ТОКЕН
 BASE_URL = f"https://api.telegram.org/bot{BOT_TOKEN}/"
+
+# ВАЖНО: здесь впиши свой Telegram ID, чтобы быть админом
+# Узнать свой ID можно через бота @userinfobot или @getmyid_bot
+ADMIN_IDS: Set[int] = {7041571370}
+
+# Если захочешь — сюда можно добавить ID курьеров
+COURIER_IDS: Set[int] = {1477089022}
 
 # ==============================
 # МОДЕЛИ
@@ -29,6 +35,9 @@ class OrderStatus(str, Enum):
     CREATED = "Создан"
     SCHEDULED = "Запланирован"
     COURIER_ASSIGNED = "Курьер назначен"
+    COURIER_TO_SENDER = "Курьер едет к отправителю"
+    PICKED_UP = "Посылка у курьера"
+    COURIER_TO_RECEIVER = "Курьер в пути к получателю"
     DELIVERED = "Доставлено"
     CANCELLED = "Отменено"
 
@@ -124,8 +133,16 @@ def reset_user_state(user_id: int):
     temp_order_data.pop(user_id, None)
 
 
+def is_admin(user_id: int) -> bool:
+    return user_id in ADMIN_IDS
+
+
+def is_courier(user_id: int) -> bool:
+    return user_id in COURIER_IDS or is_admin(user_id)
+
+
 # ==============================
-# ОБРАБОТКА СООБЩЕНИЙ
+# КЛИЕНТСКИЕ КОМАНДЫ
 # ==============================
 
 
@@ -134,12 +151,14 @@ def handle_start(chat_id: int):
         "Привет! Я бот доставки FastBox 🚚\n\n"
         "Я помогаю оформить доставку вещей, еды, продуктов и лекарств "
         "по городам и регионам Казахстана, а также планировать доставку заранее.\n\n"
-        "Команды:\n"
+        "Основные команды:\n"
         "/order — создать заказ\n"
         "/history — мои заказы\n"
         "/track <id> — отследить заказ\n"
         "/help — помощь\n"
-        "/cancel — отменить текущий диалог"
+        "/cancel — отменить текущий диалог\n\n"
+        "Администратор: /admin\n"
+        "Курьер: /courier_orders"
     )
     send_message(chat_id, text)
 
@@ -147,10 +166,17 @@ def handle_start(chat_id: int):
 def handle_help(chat_id: int):
     text = (
         "❓ Помощь FastBox\n\n"
-        "/order — начать оформление нового заказа\n"
-        "/history — показать ваши последние заказы\n"
-        "/track <номер> — показать конкретный заказ\n"
-        "/cancel — отменить текущий процесс создания заказа"
+        "Клиент:\n"
+        "/order — создать новый заказ\n"
+        "/history — показать ваши заказы\n"
+        "/track <номер> — показать статус заказа\n"
+        "/cancel — отменить текущий процесс\n\n"
+        "Администратор:\n"
+        "/admin — показать команды администратора\n"
+        "/all_orders — список всех заказов\n"
+        "/set_status <id> <STATUS> — сменить статус заказа\n\n"
+        "Курьер:\n"
+        "/courier_orders — заказы со статусом COURIER_ASSIGNED"
     )
     send_message(chat_id, text)
 
@@ -418,10 +444,109 @@ def handle_track(chat_id: int, user_id: int, args: List[str]):
     if not order:
         send_message(chat_id, "Заказ с таким номером не найден.")
         return
-    if order.user_id != user_id:
+    if order.user_id != user_id and not is_admin(user_id):
         send_message(chat_id, "Вы не можете просматривать этот заказ.")
         return
     send_message(chat_id, format_order(order))
+
+
+# ==============================
+# АДМИНСКИЕ И КУРЬЕРСКИЕ КОМАНДЫ
+# ==============================
+
+
+def handle_admin(chat_id: int, user_id: int):
+    if not is_admin(user_id):
+        send_message(chat_id, "Эта команда доступна только администратору.")
+        return
+    text = (
+        "🛠 Админ-панель FastBox\n\n"
+        "/all_orders — показать все заказы\n"
+        "/set_status <id> <STATUS> — сменить статус заказа\n\n"
+        "Доступные статусы:\n"
+        + ", ".join(s.name for s in OrderStatus)
+    )
+    send_message(chat_id, text)
+
+
+def handle_all_orders(chat_id: int, user_id: int):
+    if not is_admin(user_id):
+        send_message(chat_id, "Эта команда доступна только администратору.")
+        return
+
+    if not orders_store:
+        send_message(chat_id, "Заказов пока нет.")
+        return
+
+    lines = ["📦 Все заказы:"]
+    for oid in sorted(orders_store.keys()):
+        o = orders_store[oid]
+        lines.append(
+            f"• №{o.id} — {o.order_type.value}, {o.status.value}, {o.price_kzt} ₸ "
+            f"(user_id={o.user_id})"
+        )
+    send_message(chat_id, "\n".join(lines))
+
+
+def handle_set_status(chat_id: int, user_id: int, args: List[str]):
+    if not is_admin(user_id):
+        send_message(chat_id, "Эта команда доступна только администратору.")
+        return
+
+    if len(args) != 2:
+        send_message(chat_id, "Использование: /set_status <id> <STATUS>")
+        return
+
+    if not args[0].isdigit():
+        send_message(chat_id, "id заказа должен быть числом.")
+        return
+
+    oid = int(args[0])
+    status_name = args[1].upper()
+
+    order = orders_store.get(oid)
+    if not order:
+        send_message(chat_id, "Заказ с таким номером не найден.")
+        return
+
+    try:
+        new_status = OrderStatus[status_name]
+    except KeyError:
+        send_message(
+            chat_id,
+            "Неверный статус. Доступные:\n" + ", ".join(s.name for s in OrderStatus),
+        )
+        return
+
+    order.status = new_status
+    send_message(chat_id, f"Статус заказа №{oid} изменён на {new_status.value}.")
+
+
+def handle_courier_orders(chat_id: int, user_id: int):
+    if not is_courier(user_id):
+        send_message(chat_id, "Эта команда доступна только курьерам или администратору.")
+        return
+
+    # Показываем заказы в статусе COURIER_ASSIGNED
+    orders = [
+        o for o in orders_store.values()
+        if o.status == OrderStatus.COURIER_ASSIGNED
+    ]
+    if not orders:
+        send_message(chat_id, "Сейчас нет заказов со статусом COURIER_ASSIGNED.")
+        return
+
+    lines = ["🚴 Заказы для курьеров (COURIER_ASSIGNED):"]
+    for o in orders:
+        lines.append(
+            f"• №{o.id} — {o.order_type.value}, {o.city_from} → {o.city_to}, {o.price_kzt} ₸"
+        )
+    send_message(chat_id, "\n".join(lines))
+
+
+# ==============================
+# ОБРАБОТКА ВХОДЯЩИХ
+# ==============================
 
 
 def handle_message(msg: dict):
@@ -451,6 +576,14 @@ def handle_message(msg: dict):
             handle_track(chat_id, user_id, args)
         elif cmd == "/cancel":
             handle_cancel(chat_id, user_id)
+        elif cmd == "/admin":
+            handle_admin(chat_id, user_id)
+        elif cmd == "/all_orders":
+            handle_all_orders(chat_id, user_id)
+        elif cmd == "/set_status":
+            handle_set_status(chat_id, user_id, args)
+        elif cmd == "/courier_orders":
+            handle_courier_orders(chat_id, user_id)
         else:
             send_message(chat_id, "Неизвестная команда. Используйте /help.")
         return
@@ -459,7 +592,10 @@ def handle_message(msg: dict):
     if user_id in user_state:
         process_order_step(chat_id, user_id, text)
     else:
-        send_message(chat_id, "Я вас не понял. Используйте /order для создания заказа или /help для помощи.")
+        send_message(
+            chat_id,
+            "Я вас не понял. Используйте /order для создания заказа или /help для помощи.",
+        )
 
 
 # ==============================

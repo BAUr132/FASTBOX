@@ -5,7 +5,6 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="924760ef-8e18-4373-8cf2-eb1e81a5b2f1" name="Changes" comment="">
-      <change afterPath="$PROJECT_DIR$/Fastbox/id" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/Fastbox/FastBOX_PROJECT.py" beforeDir="false" afterPath="$PROJECT_DIR$/Fastbox/FastBOX_PROJECT.py" afterDir="false" />
     </list>
