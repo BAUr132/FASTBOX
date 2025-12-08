@@ -5,8 +5,8 @@ from telegram import (
     InlineKeyboardButton,
     InlineKeyboardMarkup,
     ReplyKeyboardMarkup,
-    WebAppInfo,  # Вернули для Web App
-    MenuButtonWebApp  # Вернули для кнопки меню
+    WebAppInfo,
+    MenuButtonWebApp
 )
 from telegram.ext import (
     Application,
@@ -22,16 +22,17 @@ from telegram.ext import (
 # НАСТРОЙКИ КОНФИГУРАЦИИ
 # ==============================================================================
 
-# 1. Вставьте сюда токен
+# 1. Токен
 API_TOKEN = "8571414658:AAG3-A-zzxoBIqxt9FqGewSKViHk5rSCtg0"
 
-# 2. Вставьте сюда ваш Telegram ID (число)
+# 2. Ваш Telegram ID
 ADMIN_IDS = [123456789]
 
 # 3. Список ID утвержденных курьеров
 APPROVED_COURIERS = []
 
-# 4. Ссылка на ваше Web App (ОБЯЗАТЕЛЬНО HTTPS)
+# 4. Ссылка на ваше Web App
+# Важно: URL должен быть точным. Если в браузере работает, значит всё ок.
 WEB_APP_URL = "https://baur132.github.io/FASTBOX/index.html"
 
 # ==============================================================================
@@ -102,7 +103,6 @@ def get_role(user_id):
     return "guest"
 
 
-# Вспомогательная функция для отправки ответа (работает и с CallbackQuery, и с Message)
 async def send_or_edit(update: Update, text: str, reply_markup=None):
     try:
         if update.callback_query:
@@ -114,7 +114,6 @@ async def send_or_edit(update: Update, text: str, reply_markup=None):
 
 
 def get_main_menu_keyboard(role):
-    # Inline-клавиатура (прикрепляется к сообщениям)
     keyboard = []
     if role == "client":
         keyboard = [
@@ -145,7 +144,6 @@ def get_main_menu_keyboard(role):
 
 
 def get_reply_keyboard(role):
-    # Reply-клавиатура (кнопки под полем ввода)
     if role == "client":
         return ReplyKeyboardMarkup([
             ["➕ Создать заказ", "📦 Мои заказы"],
@@ -162,7 +160,6 @@ def get_reply_keyboard(role):
             ["⚙️ Настройки", "❓ Помощь"],
         ], resize_keyboard=True)
     else:
-        # Для гостя кнопок внизу нет, пока не выберет роль
         return None
 
 
@@ -172,16 +169,14 @@ def get_reply_keyboard(role):
 
 async def post_init(application: Application):
     """
-    Выполняется при запуске бота.
-    Здесь мы устанавливаем команды и кнопку Web App.
+    Устанавливает кнопку "по умолчанию" для новых пользователей.
     """
-    # 1. Установка команд
     await application.bot.set_my_commands([
         ("start", "🏠 Главное меню / Перезапуск"),
         ("help", "❓ Справка"),
     ])
 
-    # 2. Установка кнопки Web App с текстом "Сервис"
+    # Установка глобальной кнопки (может обновляться с задержкой у старых юзеров)
     await application.bot.set_chat_menu_button(
         menu_button=MenuButtonWebApp(text="Сервис", web_app=WebAppInfo(url=WEB_APP_URL))
     )
@@ -189,6 +184,19 @@ async def post_init(application: Application):
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
+
+    # --- ВАЖНОЕ ИСПРАВЛЕНИЕ ---
+    # Принудительно обновляем кнопку ЛИЧНО для этого пользователя.
+    # Это решает проблему "кнопка не появилась".
+    try:
+        await context.bot.set_chat_menu_button(
+            chat_id=update.effective_chat.id,
+            menu_button=MenuButtonWebApp(text="Сервис", web_app=WebAppInfo(url=WEB_APP_URL))
+        )
+    except Exception as e:
+        logger.error(f"Не удалось обновить кнопку меню: {e}")
+    # --------------------------
+
     role = get_role(user.id)
 
     if user.id not in users_db and role != "admin":
@@ -245,7 +253,6 @@ async def help_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await send_or_edit(update, text, InlineKeyboardMarkup(kb))
 
 
-# Заглушка для Mini Apps (если кто-то нажмет старую текстовую кнопку)
 async def mini_app_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         "🚧 **Mini App**\n\n"
@@ -344,7 +351,7 @@ async def order_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE):
     data = context.user_data['new_order']
     data['id'] = order_counter
     data['status'] = STATUS_CREATED
-    data['courier_id'] = None  # Важно: создаем ключ, чтобы не было ошибки
+    data['courier_id'] = None
     orders_db[order_counter] = data
     order_counter += 1
 
@@ -356,7 +363,6 @@ async def client_my_orders(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.callback_query: await update.callback_query.answer()
     user_id = update.effective_user.id
 
-    # Безопасное получение списка
     user_orders = [o for o in orders_db.values() if o.get('client_id') == user_id]
 
     if not user_orders:
