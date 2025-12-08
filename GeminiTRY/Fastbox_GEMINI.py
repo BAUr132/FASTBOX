@@ -23,7 +23,7 @@ from telegram.ext import (
 # ==============================================================================
 
 # 1. Вставьте сюда токен
-API_TOKEN = "ВАШ_ТОКЕН_ЗДЕСЬ"
+API_TOKEN = "8571414658:AAG3-A-zzxoBIqxt9FqGewSKViHk5rSCtg0"
 
 # 2. Вставьте сюда ваш Telegram ID (число)
 ADMIN_IDS = [123456789]
@@ -32,7 +32,7 @@ ADMIN_IDS = [123456789]
 APPROVED_COURIERS = []
 
 # 4. Ссылка на ваше Web App (ОБЯЗАТЕЛЬНО HTTPS)
-WEB_APP_URL = "https://telegram.org"
+WEB_APP_URL = "https://baur132.github.io/FASTBOX/index.html"
 
 # ==============================================================================
 # ЛОГИРОВАНИЕ
