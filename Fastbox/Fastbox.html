@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FastBox — Революция в доставке через Telegram</title>
+    <meta name="description" content="Мгновенный вызов курьера прямо в Telegram. Без лишних приложений и регистраций.">
+
+    <!-- Подключение стилей Tailwind CSS (для быстрого и красивого дизайна) -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- Иконки FontAwesome -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700;800&family=Open+Sans:wght@400;600&display=swap" rel="stylesheet">
+
+    <!-- Настройка шрифтов и анимаций -->
+    <style>
+        body { font-family: 'Open Sans', sans-serif; }
+        h1, h2, h3, h4, h5, h6 { font-family: 'Montserrat', sans-serif; }
+
+        .hero-pattern {
+            background-color: #2563EB;
+            background-image: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.1'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+        }
+
+        /* Анимация плавного появления */
+        .fade-in {
+            animation: fadeIn 1s ease-out;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .phone-mockup {
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+            border: 8px solid #1F2937;
+            border-radius: 2rem;
+            overflow: hidden;
+        }
+    </style>
+</head>
+<body class="bg-gray-50 text-gray-800">
+
+<!-- НАВИГАЦИЯ -->
+<nav class="fixed w-full bg-white/90 backdrop-blur-md shadow-sm z-50">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div class="flex justify-between items-center h-16">
+            <div class="flex items-center gap-2">
+                <div class="w-8 h-8 bg-blue-600 text-white rounded-lg flex items-center justify-center text-lg">
+                    <i class="fas fa-box-open"></i>
+                </div>
+                <span class="font-bold text-xl text-gray-900 tracking-tight">FastBox</span>
+            </div>
+            <div class="hidden md:flex space-x-8">
+                <a href="#problems" class="text-gray-600 hover:text-blue-600 transition">Проблемы</a>
+                <a href="#features" class="text-gray-600 hover:text-blue-600 transition">Возможности</a>
+                <a href="#how-it-works" class="text-gray-600 hover:text-blue-600 transition">Как это работает</a>
+            </div>
+            <a href="https://t.me/YourBotName" class="bg-blue-600 text-white px-5 py-2 rounded-full font-semibold hover:bg-blue-700 transition shadow-lg shadow-blue-500/30">
+                Запустить Бота
+            </a>
+        </div>
+    </div>
+</nav>
+
+<!-- ГЛАВНЫЙ ЭКРАН (HERO) -->
+<header class="hero-pattern text-white pt-32 pb-20 lg:pt-48 lg:pb-32 relative overflow-hidden">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10 flex flex-col lg:flex-row items-center">
+
+        <!-- Левая часть: Текст -->
+        <div class="lg:w-1/2 text-center lg:text-left fade-in">
+            <div class="inline-block bg-blue-800 bg-opacity-50 rounded-full px-4 py-1 mb-6 text-sm font-semibold tracking-wide uppercase">
+                🚀 Доставка нового поколения
+            </div>
+            <h1 class="text-4xl lg:text-6xl font-extrabold leading-tight mb-6">
+                Ваш личный курьер <br>
+                прямо в <span class="text-yellow-300">Telegram</span>
+            </h1>
+            <p class="text-xl text-blue-100 mb-8 max-w-2xl mx-auto lg:mx-0">
+                Забудьте о сложных приложениях и звонках операторам. FastBox находит курьера за 5 минут, пока вы переписываетесь с друзьями.
+            </p>
+            <div class="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start">
+                <a href="https://t.me/YourBotName" class="bg-white text-blue-600 px-8 py-4 rounded-xl font-bold text-lg hover:bg-gray-100 transition shadow-xl transform hover:-translate-y-1">
+                    <i class="fab fa-telegram-plane mr-2"></i> Открыть в Telegram
+                </a>
+                <a href="#features" class="border-2 border-white/30 text-white px-8 py-4 rounded-xl font-bold text-lg hover:bg-white/10 transition backdrop-blur-sm">
+                    Узнать больше
+                </a>
+            </div>
+        </div>
+
+        <!-- Правая часть: Иллюстрация -->
+        <div class="lg:w-1/2 mt-12 lg:mt-0 flex justify-center relative">
+            <!-- Декоративные круги -->
+            <div class="absolute bg-yellow-400 w-64 h-64 rounded-full filter blur-3xl opacity-20 -top-10 -right-10 animate-pulse"></div>
+            <div class="absolute bg-blue-400 w-64 h-64 rounded-full filter blur-3xl opacity-20 bottom-0 left-10"></div>
+
+            <!-- Макет чата (HTML/CSS mockup) -->
+            <div class="bg-white text-gray-800 w-72 rounded-3xl shadow-2xl p-4 relative z-10 transform rotate-3 hover:rotate-0 transition duration-500 border-4 border-gray-900/10">
+                <div class="flex items-center border-b pb-3 mb-3">
+                    <div class="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center text-blue-600 mr-3">
+                        <i class="fas fa-robot"></i>
+                    </div>
+                    <div>
+                        <p class="font-bold text-sm">FastBox Bot</p>
+                        <p class="text-xs text-blue-500">bot</p>
+                    </div>
+                </div>
+                <div class="space-y-3 text-sm">
+                    <div class="bg-gray-100 p-3 rounded-tr-xl rounded-bl-xl rounded-br-xl w-10/12">
+                        👋 Привет! Куда нужно доставить посылку?
+                    </div>
+                    <div class="bg-blue-600 text-white p-3 rounded-tl-xl rounded-bl-xl rounded-br-xl w-10/12 ml-auto">
+                        📍 Абая 150, документы. Срочно!
+                    </div>
+                    <div class="bg-gray-100 p-3 rounded-tr-xl rounded-bl-xl rounded-br-xl w-10/12">
+                        <p class="font-bold mb-1">✅ Курьер найден!</p>
+                        <p class="text-xs text-gray-500">Арман приедет через 7 мин.</p>
+                        <div class="mt-2 h-1 bg-blue-200 rounded overflow-hidden">
+                            <div class="h-full bg-blue-500 w-2/3"></div>
+                        </div>
+                    </div>
+                </div>
+                <div class="mt-4 pt-2 border-t flex justify-between text-blue-500 text-2xl">
+                    <i class="fas fa-plus-circle"></i>
+                    <i class="fas fa-microphone"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+</header>
+
+<!-- СЕКЦИЯ: ПРОБЛЕМЫ (Почему мы?) -->
+<section id="problems" class="py-20 bg-white">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div class="text-center mb-16">
+            <h2 class="text-3xl font-bold text-gray-900">Доставка бывает сложной. <br> Мы сделали её <span class="text-blue-600">простой</span>.</h2>
+        </div>
+
+        <div class="grid md:grid-cols-3 gap-8">
+            <!-- Problem 1 -->
+            <div class="bg-gray-50 rounded-2xl p-8 hover:shadow-lg transition duration-300 border border-transparent hover:border-blue-100">
+                <div class="w-14 h-14 bg-red-100 text-red-500 rounded-full flex items-center justify-center text-2xl mb-6">
+                    <i class="fas fa-clock"></i>
+                </div>
+                <h3 class="text-xl font-bold mb-3">Долгое ожидание</h3>
+                <p class="text-gray-600">В обычных службах нужно висеть на линии или ждать, пока диспетчер назначит машину. Это может занять часы.</p>
+            </div>
+            <!-- Problem 2 -->
+            <div class="bg-gray-50 rounded-2xl p-8 hover:shadow-lg transition duration-300 border border-transparent hover:border-blue-100">
+                <div class="w-14 h-14 bg-orange-100 text-orange-500 rounded-full flex items-center justify-center text-2xl mb-6">
+                    <i class="fas fa-file-download"></i>
+                </div>
+                <h3 class="text-xl font-bold mb-3">Лишние приложения</h3>
+                <p class="text-gray-600">Нужно скачивать еще одно приложение, регистрироваться, привязывать карту... Зачем, если есть Telegram?</p>
+            </div>
+            <!-- Problem 3 -->
+            <div class="bg-gray-50 rounded-2xl p-8 hover:shadow-lg transition duration-300 border border-transparent hover:border-blue-100">
+                <div class="w-14 h-14 bg-gray-200 text-gray-500 rounded-full flex items-center justify-center text-2xl mb-6">
+                    <i class="fas fa-question"></i>
+                </div>
+                <h3 class="text-xl font-bold mb-3">Непрозрачная цена</h3>
+                <p class="text-gray-600">Часто финальная стоимость сюрприз. У нас вы видите цену сразу после ввода адреса. Никаких скрытых комиссий.</p>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- СЕКЦИЯ: ВОЗМОЖНОСТИ (Features) -->
+<section id="features" class="py-20 bg-gray-900 text-white relative overflow-hidden">
+    <!-- Фоновые элементы -->
+    <div class="absolute top-0 right-0 -mr-20 -mt-20 w-96 h-96 bg-blue-600 rounded-full opacity-20 filter blur-3xl"></div>
+    <div class="absolute bottom-0 left-0 -ml-20 -mb-20 w-80 h-80 bg-purple-600 rounded-full opacity-20 filter blur-3xl"></div>
+
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
+        <div class="flex flex-col lg:flex-row items-center gap-16">
+
+            <div class="lg:w-1/2">
+                <h2 class="text-3xl lg:text-4xl font-bold mb-6">Вся мощь логистики <br> в одном чат-боте</h2>
+                <p class="text-gray-400 text-lg mb-8">
+                    FastBox — это экосистема для клиентов и курьеров. Мы объединили удобство мессенджера и технологии Uber.
+                </p>
+
+                <div class="space-y-6">
+                    <div class="flex">
+                        <div class="flex-shrink-0">
+                            <div class="flex items-center justify-center h-12 w-12 rounded-md bg-blue-600 text-white">
+                                <i class="fas fa-bolt"></i>
+                            </div>
+                        </div>
+                        <div class="ml-4">
+                            <h4 class="text-lg font-bold">Мгновенный расчет</h4>
+                            <p class="text-gray-400">Бот рассчитывает стоимость за секунду, учитывая расстояние и вес.</p>
+                        </div>
+                    </div>
+                    <div class="flex">
+                        <div class="flex-shrink-0">
+                            <div class="flex items-center justify-center h-12 w-12 rounded-md bg-green-500 text-white">
+                                <i class="fas fa-map-marked-alt"></i>
+                            </div>
+                        </div>
+                        <div class="ml-4">
+                            <h4 class="text-lg font-bold">Отслеживание статусов</h4>
+                            <p class="text-gray-400">Вы получаете уведомления на каждом этапе: "Курьер назначен", "Забрал", "Доставил".</p>
+                        </div>
+                    </div>
+                    <div class="flex">
+                        <div class="flex-shrink-0">
+                            <div class="flex items-center justify-center h-12 w-12 rounded-md bg-purple-500 text-white">
+                                <i class="fas fa-users-cog"></i>
+                            </div>
+                        </div>
+                        <div class="ml-4">
+                            <h4 class="text-lg font-bold">Две роли в одном</h4>
+                            <p class="text-gray-400">Хотите подзаработать? Переключитесь в режим "Курьер" одной кнопкой и берите заказы.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="lg:w-1/2 flex justify-center">
+                <!-- Иллюстрация функционала -->
+                <div class="grid grid-cols-2 gap-4">
+                    <div class="bg-gray-800 p-6 rounded-2xl transform translate-y-8 shadow-xl">
+                        <i class="fas fa-utensils text-yellow-400 text-3xl mb-4"></i>
+                        <h4 class="font-bold">Еда</h4>
+                        <p class="text-xs text-gray-400 mt-2">Горячая доставка из ресторанов</p>
+                    </div>
+                    <div class="bg-gray-800 p-6 rounded-2xl shadow-xl">
+                        <i class="fas fa-file-contract text-blue-400 text-3xl mb-4"></i>
+                        <h4 class="font-bold">Документы</h4>
+                        <p class="text-xs text-gray-400 mt-2">Важные бумаги в офис</p>
+                    </div>
+                    <div class="bg-gray-800 p-6 rounded-2xl transform translate-y-8 shadow-xl">
+                        <i class="fas fa-tshirt text-pink-400 text-3xl mb-4"></i>
+                        <h4 class="font-bold">Вещи</h4>
+                        <p class="text-xs text-gray-400 mt-2">Забыли ключи или одежду?</p>
+                    </div>
+                    <div class="bg-gray-800 p-6 rounded-2xl shadow-xl">
+                        <i class="fas fa-pills text-green-400 text-3xl mb-4"></i>
+                        <h4 class="font-bold">Аптека</h4>
+                        <p class="text-xs text-gray-400 mt-2">Лекарства до двери</p>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+</section>
+
+<!-- СЕКЦИЯ: КАК ЭТО РАБОТАЕТ -->
+<section id="how-it-works" class="py-20 bg-blue-50">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+        <h2 class="text-3xl font-bold mb-12">Всего 3 шага до отправки</h2>
+
+        <div class="flex flex-col md:flex-row justify-center items-center space-y-8 md:space-y-0 relative">
+            <!-- Соединительная линия (скрыта на мобильных) -->
+            <div class="hidden md:block absolute top-1/2 left-20 right-20 h-1 bg-blue-200 -z-10 transform -translate-y-1/2"></div>
+
+            <!-- Шаг 1 -->
+            <div class="w-full md:w-1/3 px-4">
+                <div class="bg-white w-20 h-20 mx-auto rounded-full flex items-center justify-center shadow-lg mb-6 border-4 border-blue-100 z-10 relative">
+                    <span class="text-2xl font-bold text-blue-600">1</span>
+                </div>
+                <h3 class="text-lg font-bold mb-2">Запустите бота</h3>
+                <p class="text-gray-600 text-sm">Нажмите кнопку Start и выберите "Создать заказ".</p>
+            </div>
+
+            <!-- Шаг 2 -->
+            <div class="w-full md:w-1/3 px-4">
+                <div class="bg-white w-20 h-20 mx-auto rounded-full flex items-center justify-center shadow-lg mb-6 border-4 border-blue-100 z-10 relative">
+                    <span class="text-2xl font-bold text-blue-600">2</span>
+                </div>
+                <h3 class="text-lg font-bold mb-2">Опишите задачу</h3>
+                <p class="text-gray-600 text-sm">Укажите адреса и что нужно отвезти (текстом или через Mini App).</p>
+            </div>
+
+            <!-- Шаг 3 -->
+            <div class="w-full md:w-1/3 px-4">
+                <div class="bg-white w-20 h-20 mx-auto rounded-full flex items-center justify-center shadow-lg mb-6 border-4 border-blue-100 z-10 relative">
+                    <span class="text-2xl font-bold text-blue-600">3</span>
+                </div>
+                <h3 class="text-lg font-bold mb-2">Ожидайте курьера</h3>
+                <p class="text-gray-600 text-sm">Система назначит ближайшего курьера. Оплата наличными или переводом.</p>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- СЕКЦИЯ: CTA (Call to Action) -->
+<section class="py-20 bg-blue-600 text-white text-center px-4">
+    <div class="max-w-4xl mx-auto">
+        <h2 class="text-3xl md:text-5xl font-bold mb-6">Готовы попробовать?</h2>
+        <p class="text-xl text-blue-100 mb-10">Первая доставка со скидкой 10% для новых пользователей.</p>
+        <a href="https://t.me/YourBotName" class="inline-block bg-white text-blue-600 font-bold text-xl px-10 py-5 rounded-full shadow-2xl hover:bg-gray-100 transition transform hover:scale-105">
+            Запустить FastBox
+        </a>
+        <p class="mt-6 text-sm opacity-70">Работает 24/7 • Без выходных</p>
+    </div>
+</section>
+
+<!-- FOOTER -->
+<footer class="bg-gray-900 text-gray-400 py-10 border-t border-gray-800">
+    <div class="max-w-7xl mx-auto px-4 flex flex-col md:flex-row justify-between items-center">
+        <div class="mb-4 md:mb-0">
+            <span class="text-2xl font-bold text-white tracking-tight">FastBox</span>
+            <p class="text-sm mt-1">Умная логистика в Telegram</p>
+        </div>
+        <div class="flex space-x-6 text-2xl">
+            <a href="#" class="hover:text-white transition"><i class="fab fa-telegram"></i></a>
+            <a href="#" class="hover:text-white transition"><i class="fab fa-instagram"></i></a>
+            <a href="#" class="hover:text-white transition"><i class="fab fa-twitter"></i></a>
+        </div>
+        <div class="mt-4 md:mt-0 text-sm">
+            &copy; 2024 FastBox. Все права защищены.
+        </div>
+    </div>
+</footer>
+
+<!-- Скрипт для плавной прокрутки -->
+<script>
+    document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+        anchor.addEventListener('click', function (e) {
+            e.preventDefault();
+            document.querySelector(this.getAttribute('href')).scrollIntoView({
+                behavior: 'smooth'
+            });
+        });
+    });
+</script>
+</body>
+</html>
