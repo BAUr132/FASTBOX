@@ -1,6 +1,11 @@
 import logging
 import datetime
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram import (
+    Update,
+    InlineKeyboardButton,
+    InlineKeyboardMarkup,
+    ReplyKeyboardMarkup
+)
 from telegram.ext import (
     Application,
     CommandHandler,
@@ -16,7 +21,7 @@ from telegram.ext import (
 # ==============================================================================
 
 # 1. Вставьте сюда токен
-API_TOKEN = "8571414658:AAG3-A-zzxoBIqxt9FqGewSKViHk5rSCtg0"
+API_TOKEN = "ВАШ_ТОКЕН_ЗДЕСЬ"
 
 # 2. Вставьте сюда ваш Telegram ID (число)
 ADMIN_IDS = [123456789]
@@ -39,7 +44,7 @@ logger = logging.getLogger(__name__)
 users_db = {}
 orders_db = {}
 order_counter = 1
-courier_applications = {}  # {user_id: {...data...}}
+courier_applications = {}
 
 # Статусы
 STATUS_CREATED = "CREATED"
@@ -92,7 +97,19 @@ def get_role(user_id):
     return "guest"
 
 
+# Вспомогательная функция для отправки ответа (работает и с CallbackQuery, и с Message)
+async def send_or_edit(update: Update, text: str, reply_markup=None):
+    try:
+        if update.callback_query:
+            await update.callback_query.edit_message_text(text, reply_markup=reply_markup, parse_mode="Markdown")
+        else:
+            await update.message.reply_text(text, reply_markup=reply_markup, parse_mode="Markdown")
+    except Exception as e:
+        logger.error(f"Ошибка отправки сообщения: {e}")
+
+
 def get_main_menu_keyboard(role):
+    # Inline-клавиатура (прикрепляется к сообщениям)
     keyboard = []
     if role == "client":
         keyboard = [
@@ -104,9 +121,9 @@ def get_main_menu_keyboard(role):
     elif role == "courier":
         keyboard = [
             [InlineKeyboardButton("📋 Доступные заказы", callback_data="courier_market")],
-            [InlineKeyboardButton("📦 Мои активные заказы", callback_data="courier_active")],
-            [InlineKeyboardButton("💰 Моя статистика", callback_data="courier_stats")],
-            [InlineKeyboardButton("❓ Помощь", callback_data="menu_help")],
+            [InlineKeyboardButton("📦 Активные заказы", callback_data="courier_active")],
+            [InlineKeyboardButton("💰 Статистика", callback_data="courier_stats"),
+             InlineKeyboardButton("❓ Помощь", callback_data="menu_help")],
         ]
     elif role == "admin":
         keyboard = [
@@ -122,22 +139,43 @@ def get_main_menu_keyboard(role):
     return InlineKeyboardMarkup(keyboard)
 
 
-def calculate_price(weight_category, city_from, city_to):
-    base = 1000
-    if city_from.lower() != city_to.lower():
-        base += 2000
-    if weight_category == ">10 кг":
-        base += 1500
-    elif weight_category == "5-10 кг":
-        base += 1000
-    elif weight_category == "1-5 кг":
-        base += 500
-    return base
+def get_reply_keyboard(role):
+    # Reply-клавиатура (кнопки под полем ввода)
+    if role == "client":
+        return ReplyKeyboardMarkup([
+            ["➕ Создать заказ", "📦 Мои заказы"],
+            ["🔍 Отследить", "❓ Помощь"],
+        ], resize_keyboard=True)
+    elif role == "courier":
+        return ReplyKeyboardMarkup([
+            ["📋 Доступные заказы", "📦 Активные заказы"],
+            ["💰 Статистика", "❓ Помощь"],
+        ], resize_keyboard=True)
+    elif role == "admin":
+        return ReplyKeyboardMarkup([
+            ["📋 Все заказы", "🚴 Заявки курьеров"],
+            ["⚙️ Настройки", "❓ Помощь"],
+        ], resize_keyboard=True)
+    else:
+        # Для гостя кнопок внизу нет, пока не выберет роль
+        return None
 
 
 # ==============================================================================
-# ОБЩАЯ ЛОГИКА (START / MENU / HELP)
+# ОБЩАЯ ЛОГИКА
 # ==============================================================================
+
+async def post_init(application: Application):
+    """
+    Выполняется при запуске бота.
+    Здесь мы устанавливаем команды.
+    """
+    # 1. Установка команд
+    await application.bot.set_my_commands([
+        ("start", "🏠 Главное меню / Перезапуск"),
+        ("help", "❓ Справка"),
+    ])
+
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
@@ -152,13 +190,16 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await update.message.reply_text(text, reply_markup=get_main_menu_keyboard(role))
 
+    reply_kb = get_reply_keyboard(role)
+    if reply_kb:
+        await update.message.reply_text("⌨️ Меню обновлено", reply_markup=reply_kb)
+
 
 async def main_menu_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
     user_id = query.from_user.id
 
-    # Восстановление пользователя при перезапуске бота
     if user_id not in users_db and user_id not in ADMIN_IDS:
         users_db[user_id] = {"role": "guest", "name": query.from_user.full_name, "username": query.from_user.username}
 
@@ -166,7 +207,10 @@ async def main_menu_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
     if query.data == "role_client":
         users_db[user_id]["role"] = "client"
-        await query.edit_message_text("Вы зарегистрированы как Клиент!", reply_markup=get_main_menu_keyboard("client"))
+        await query.edit_message_text("✅ Вы зарегистрированы как Клиент!",
+                                      reply_markup=get_main_menu_keyboard("client"))
+        await context.bot.send_message(chat_id=user_id, text="👇 Пользуйтесь кнопками внизу",
+                                       reply_markup=get_reply_keyboard("client"))
         return
 
     if query.data == "main_menu":
@@ -174,27 +218,37 @@ async def main_menu_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
 
 async def help_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    await query.answer()
-    role = get_role(query.from_user.id)
+    if update.callback_query: await update.callback_query.answer()
+
     text = (
-        "❓ **Справка**\n\n"
-        "**Клиенту:** Нажмите 'Создать заказ', заполните форму. Курьер возьмет заказ, и вы получите уведомление.\n"
-        "**Курьеру:** 'Доступные заказы' - лента новых заказов. 'Активные' - те, что вы взяли в работу.\n"
-        "**Админу:** Управление через меню."
+        "❓ **Справка FastBox**\n\n"
+        "**Клиенту:**\n"
+        "— 'Создать заказ': заполните анкету.\n"
+        "— 'Мои заказы': список ваших отправлений.\n\n"
+        "**Курьеру:**\n"
+        "— 'Доступные': общая лента заказов.\n"
+        "— 'Активные': заказы в работе."
     )
     kb = [[InlineKeyboardButton("⬅️ В меню", callback_data="main_menu")]]
-    await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(kb), parse_mode="Markdown")
+    await send_or_edit(update, text, InlineKeyboardMarkup(kb))
+
+
+# Заглушка для Mini Apps (если кто-то нажмет старую текстовую кнопку)
+async def mini_app_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text(
+        "🚧 **Mini App**\n\n"
+        "Используйте кнопку **'Play'** слева внизу (рядом с полем ввода), чтобы открыть приложение.",
+        parse_mode="Markdown"
+    )
 
 
 # ==============================================================================
 # ФУНКЦИОНАЛ КЛИЕНТА
 # ==============================================================================
 
-# ... (Код создания заказа остался прежним, сокращаю для читаемости, в полном файле он будет) ...
 async def start_create_order(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    await query.answer()
+    if update.callback_query: await update.callback_query.answer()
+
     keyboard = [
         [InlineKeyboardButton("🍔 Еда", callback_data="type_Food"),
          InlineKeyboardButton("📦 Вещи", callback_data="type_Items")],
@@ -202,7 +256,7 @@ async def start_create_order(update: Update, context: ContextTypes.DEFAULT_TYPE)
          InlineKeyboardButton("💊 Лекарства", callback_data="type_Meds")],
         [InlineKeyboardButton("❌ Отмена", callback_data="cancel_order")]
     ]
-    await query.edit_message_text("Шаг 1/7. Что доставляем?", reply_markup=InlineKeyboardMarkup(keyboard))
+    await send_or_edit(update, "Шаг 1/7. Что доставляем?", InlineKeyboardMarkup(keyboard))
     return ORDER_TYPE
 
 
@@ -278,7 +332,7 @@ async def order_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE):
     data = context.user_data['new_order']
     data['id'] = order_counter
     data['status'] = STATUS_CREATED
-    data['courier_id'] = None
+    data['courier_id'] = None  # Важно: создаем ключ, чтобы не было ошибки
     orders_db[order_counter] = data
     order_counter += 1
 
@@ -287,33 +341,35 @@ async def order_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def client_my_orders(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    await query.answer()
-    user_orders = [o for o in orders_db.values() if o['client_id'] == query.from_user.id]
+    if update.callback_query: await update.callback_query.answer()
+    user_id = update.effective_user.id
+
+    # Безопасное получение списка
+    user_orders = [o for o in orders_db.values() if o.get('client_id') == user_id]
+
     if not user_orders:
-        await query.edit_message_text("У вас нет заказов.", reply_markup=get_main_menu_keyboard("client"))
+        await send_or_edit(update, "У вас нет заказов.", get_main_menu_keyboard("client"))
         return
     text = "📦 **Ваши заказы:**\n" + "\n".join(
-        [f"#{o['id']} - {STATUS_TRANSLATION[o['status']]}" for o in user_orders[-5:]])
-    await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(
-        [[InlineKeyboardButton("⬅️ Назад", callback_data="main_menu")]]), parse_mode="Markdown")
+        [f"#{o.get('id')} - {STATUS_TRANSLATION.get(o.get('status'), 'Unknown')}" for o in user_orders[-5:]])
+    await send_or_edit(update, text,
+                       InlineKeyboardMarkup([[InlineKeyboardButton("⬅️ Назад", callback_data="main_menu")]]))
 
 
 async def client_track_order(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    await query.answer()
-    # Просто показываем активные заказы клиента с деталями
+    if update.callback_query: await update.callback_query.answer()
+    user_id = update.effective_user.id
+
     user_orders = [o for o in orders_db.values() if
-                   o['client_id'] == query.from_user.id and o['status'] != STATUS_DELIVERED]
+                   o.get('client_id') == user_id and o.get('status') != STATUS_DELIVERED]
     if not user_orders:
-        await query.edit_message_text("Нет активных заказов для отслеживания.",
-                                      reply_markup=get_main_menu_keyboard("client"))
+        await send_or_edit(update, "Нет активных заказов для отслеживания.", get_main_menu_keyboard("client"))
         return
     text = "🔍 **Трекинг (Активные):**\n\n"
     for o in user_orders:
-        text += f"📦 **#{o['id']}**: {STATUS_TRANSLATION[o['status']]}\n📍 {o['city_to']}\n\n"
-    await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(
-        [[InlineKeyboardButton("⬅️ Назад", callback_data="main_menu")]]), parse_mode="Markdown")
+        text += f"📦 **#{o.get('id')}**: {STATUS_TRANSLATION.get(o.get('status'), 'Unknown')}\n📍 {o.get('city_to')}\n\n"
+    await send_or_edit(update, text,
+                       InlineKeyboardMarkup([[InlineKeyboardButton("⬅️ Назад", callback_data="main_menu")]]))
 
 
 # ==============================================================================
@@ -321,9 +377,8 @@ async def client_track_order(update: Update, context: ContextTypes.DEFAULT_TYPE)
 # ==============================================================================
 
 async def start_courier_reg(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    await query.answer()
-    await query.edit_message_text("Введите ФИО:")
+    if update.callback_query: await update.callback_query.answer()
+    await send_or_edit(update, "Введите ФИО:")
     return COURIER_REG_NAME
 
 
@@ -336,7 +391,7 @@ async def courier_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def courier_city(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data['courier_app']['city'] = update.message.text
     await update.message.reply_text("Телефон:")
-    return COURIER_REG_PHONE
+    return COURIER_REG_CITY
 
 
 async def courier_phone(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -350,7 +405,6 @@ async def courier_transport(update: Update, context: ContextTypes.DEFAULT_TYPE):
     app_data['transport'] = update.message.text
     courier_applications[app_data['id']] = app_data
 
-    # Уведомление админу
     for admin_id in ADMIN_IDS:
         try:
             kb = [[InlineKeyboardButton("✅ Одобрить", callback_data=f"adm_approve_{app_data['id']}"),
@@ -365,97 +419,142 @@ async def courier_transport(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def courier_market(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    await query.answer()
-    orders = [o for o in orders_db.values() if o['status'] == STATUS_CREATED]
+    if update.callback_query: await update.callback_query.answer()
+
+    orders = [o for o in orders_db.values() if o.get('status') == STATUS_CREATED]
     if not orders:
-        await query.edit_message_text("Нет доступных заказов.", reply_markup=get_main_menu_keyboard("courier"))
+        await send_or_edit(update, "Нет доступных заказов.", get_main_menu_keyboard("courier"))
         return
     kb = [[InlineKeyboardButton(f"#{o['id']} {o['city_from']}->{o['city_to']} ({o['price']})",
                                 callback_data=f"courier_view_{o['id']}")] for o in orders]
     kb.append([InlineKeyboardButton("⬅️ Назад", callback_data="main_menu")])
-    await query.edit_message_text("Доступные заказы:", reply_markup=InlineKeyboardMarkup(kb))
+    await send_or_edit(update, "Доступные заказы:", InlineKeyboardMarkup(kb))
 
 
 async def courier_view_order(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
-    oid = int(query.data.split("_")[2])
-    o = orders_db.get(oid)
-    if not o or o['status'] != STATUS_CREATED:
-        await query.edit_message_text("Заказ недоступен.", reply_markup=get_main_menu_keyboard("courier"))
-        return
-    text = f"📦 Заказ #{oid}\n{o['type']}\n{o['city_from']} -> {o['city_to']}\nВес: {o['weight']}\n💰 {o['price']}"
-    kb = [[InlineKeyboardButton("✅ Взять", callback_data=f"courier_take_{oid}"),
-           InlineKeyboardButton("⬅️ Назад", callback_data="courier_market")]]
-    await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(kb))
+    try:
+        oid = int(query.data.split("_")[2])
+        o = orders_db.get(oid)
+        if not o or o.get('status') != STATUS_CREATED:
+            await query.edit_message_text("Заказ недоступен (возможно, уже взят).",
+                                          reply_markup=get_main_menu_keyboard("courier"))
+            return
+        text = f"📦 Заказ #{oid}\n{o['type']}\n{o['city_from']} -> {o['city_to']}\nВес: {o['weight']}\n💰 {o['price']}"
+        kb = [[InlineKeyboardButton("✅ Взять", callback_data=f"courier_take_{oid}"),
+               InlineKeyboardButton("⬅️ Назад", callback_data="courier_market")]]
+        await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(kb))
+    except Exception as e:
+        logger.error(f"Error viewing order: {e}")
+        await query.edit_message_text("Ошибка доступа к заказу.", reply_markup=get_main_menu_keyboard("courier"))
 
 
 async def courier_take_order(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
-    oid = int(query.data.split("_")[2])
-    orders_db[oid]['status'] = STATUS_ASSIGNED
-    orders_db[oid]['courier_id'] = query.from_user.id
-    await query.edit_message_text("✅ Вы взяли заказ! См. 'Активные'", reply_markup=get_main_menu_keyboard("courier"))
+    try:
+        oid = int(query.data.split("_")[2])
+        if oid not in orders_db:
+            await query.edit_message_text("Ошибка: Заказ не найден в базе.",
+                                          reply_markup=get_main_menu_keyboard("courier"))
+            return
+
+        orders_db[oid]['status'] = STATUS_ASSIGNED
+        orders_db[oid]['courier_id'] = query.from_user.id
+        await query.edit_message_text("✅ Вы взяли заказ! См. 'Активные'",
+                                      reply_markup=get_main_menu_keyboard("courier"))
+    except Exception as e:
+        logger.error(f"Error taking order: {e}")
 
 
 async def courier_active(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    await query.answer()
-    orders = [o for o in orders_db.values() if
-              o['courier_id'] == query.from_user.id and o['status'] != STATUS_DELIVERED]
+    if update.callback_query: await update.callback_query.answer()
+
+    user_id = update.effective_user.id
+
+    # ИСПРАВЛЕНИЕ: Безопасное получение данных
+    orders = []
+    for o in orders_db.values():
+        if o.get('courier_id') == user_id and o.get('status') != STATUS_DELIVERED:
+            orders.append(o)
+
     if not orders:
-        await query.edit_message_text("Нет активных заказов.", reply_markup=get_main_menu_keyboard("courier"))
+        await send_or_edit(update, "Нет активных заказов.", get_main_menu_keyboard("courier"))
         return
 
-    o = orders[0]  # Показываем первый
+    o = orders[0]
     statuses = [STATUS_ASSIGNED, STATUS_TO_SENDER, STATUS_PICKED_UP, STATUS_TO_RECEIVER, STATUS_DELIVERED]
     try:
-        idx = statuses.index(o['status'])
-        next_s = statuses[idx + 1]
-        btn_text = "➡️ Следующий статус"
-        if next_s == STATUS_TO_SENDER: btn_text = "Прибыл к отправителю"
-        if next_s == STATUS_PICKED_UP: btn_text = "Забрал посылку"
-        if next_s == STATUS_TO_RECEIVER: btn_text = "Еду к получателю"
-        if next_s == STATUS_DELIVERED: btn_text = "✅ Вручил"
+        current_status = o.get('status')
+        if current_status not in statuses:
+            await send_or_edit(update, f"Неизвестный статус заказа #{o['id']}", get_main_menu_keyboard("courier"))
+            return
 
-        kb = [[InlineKeyboardButton(btn_text, callback_data=f"status_upd_{o['id']}_{next_s}")],
-              [InlineKeyboardButton("⬅️ Назад", callback_data="main_menu")]]
-        await query.edit_message_text(f"В работе #{o['id']}\nСтатус: {STATUS_TRANSLATION[o['status']]}",
-                                      reply_markup=InlineKeyboardMarkup(kb))
-    except:
-        await query.edit_message_text("Заказ завершен.", reply_markup=get_main_menu_keyboard("courier"))
+        idx = statuses.index(current_status)
+        if idx + 1 < len(statuses):
+            next_s = statuses[idx + 1]
+            btn_text = "➡️ Следующий статус"
+            if next_s == STATUS_TO_SENDER: btn_text = "Прибыл к отправителю"
+            if next_s == STATUS_PICKED_UP: btn_text = "Забрал посылку"
+            if next_s == STATUS_TO_RECEIVER: btn_text = "Еду к получателю"
+            if next_s == STATUS_DELIVERED: btn_text = "✅ Вручил"
+
+            kb = [[InlineKeyboardButton(btn_text, callback_data=f"status_upd_{o['id']}_{next_s}")],
+                  [InlineKeyboardButton("⬅️ Назад", callback_data="main_menu")]]
+            await send_or_edit(update, f"В работе #{o['id']}\nСтатус: {STATUS_TRANSLATION.get(current_status)}",
+                               InlineKeyboardMarkup(kb))
+        else:
+            await send_or_edit(update, "Заказ уже завершен.", get_main_menu_keyboard("courier"))
+    except Exception as e:
+        logger.error(f"Error in courier_active: {e}")
+        await send_or_edit(update, "Ошибка обработки заказа.", get_main_menu_keyboard("courier"))
 
 
 async def status_update(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
-    _, _, oid, status = query.data.split("_")
-    orders_db[int(oid)]['status'] = status
-    if status == STATUS_DELIVERED:
-        await query.edit_message_text("Заказ выполнен!", reply_markup=get_main_menu_keyboard("courier"))
+    _, _, oid_str, status = query.data.split("_")
+    oid = int(oid_str)
+
+    if oid in orders_db:
+        orders_db[oid]['status'] = status
+        if status == STATUS_DELIVERED:
+            await query.edit_message_text("Заказ выполнен!", reply_markup=get_main_menu_keyboard("courier"))
+        else:
+            await courier_active(update, context)
     else:
-        await courier_active(update, context)
+        await query.edit_message_text("Ошибка: Заказ не найден.", reply_markup=get_main_menu_keyboard("courier"))
 
 
 async def courier_stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    await query.answer()
-    # Демонстрационная статистика
-    delivered = len(
-        [o for o in orders_db.values() if o['courier_id'] == query.from_user.id and o['status'] == STATUS_DELIVERED])
-    earnings = sum([o['price'] for o in orders_db.values() if
-                    o['courier_id'] == query.from_user.id and o['status'] == STATUS_DELIVERED])
+    if update.callback_query: await update.callback_query.answer()
+    user_id = update.effective_user.id
 
-    text = (
-        f"📊 **Ваша статистика**\n\n"
-        f"✅ Доставлено заказов: {delivered}\n"
-        f"💰 Заработано: {earnings} KZT\n"
-        f"⭐ Рейтинг: 5.0 (New)"
-    )
+    delivered = len(
+        [o for o in orders_db.values() if o.get('courier_id') == user_id and o.get('status') == STATUS_DELIVERED])
+    earnings = sum([o.get('price', 0) for o in orders_db.values() if
+                    o.get('courier_id') == user_id and o.get('status') == STATUS_DELIVERED])
+
+    text = f"📊 **Ваша статистика**\n\n✅ Доставлено заказов: {delivered}\n💰 Заработано: {earnings} KZT"
     kb = [[InlineKeyboardButton("⬅️ Назад", callback_data="main_menu")]]
-    await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(kb), parse_mode="Markdown")
+    await send_or_edit(update, text, InlineKeyboardMarkup(kb))
+
+
+def calculate_price(weight_category, city_from, city_to):
+    # Простая логика цены для демонстрации
+    base = 1000
+    if city_from.lower() != city_to.lower():
+        base += 2000  # Межгород
+
+    if weight_category == ">10 кг":
+        base += 1500
+    elif weight_category == "5-10 кг":
+        base += 1000
+    elif weight_category == "1-5 кг":
+        base += 500
+
+    return base
 
 
 # ==============================================================================
@@ -463,21 +562,21 @@ async def courier_stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # ==============================================================================
 
 async def admin_all_orders(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    await query.answer()
+    if update.callback_query: await update.callback_query.answer()
+
     if not orders_db:
         text = "Список заказов пуст."
     else:
         text = "📋 **Все заказы системы:**\n" + "\n".join(
-            [f"#{k} [{v['status']}] {v['city_from']}->{v['city_to']}" for k, v in orders_db.items()])
+            [f"#{k} [{v.get('status')}] {v.get('city_from')}->{v.get('city_to')}" for k, v in orders_db.items()])
 
     kb = [[InlineKeyboardButton("⬅️ Назад", callback_data="main_menu")]]
-    await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(kb), parse_mode="Markdown")
+    await send_or_edit(update, text, InlineKeyboardMarkup(kb))
 
 
 async def admin_courier_apps(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    await query.answer()
+    if update.callback_query: await update.callback_query.answer()
+
     text = "🚴 **Заявки курьеров:**\n\n"
     if not courier_applications:
         text += "Нет ожидающих заявок."
@@ -488,15 +587,14 @@ async def admin_courier_apps(update: Update, context: ContextTypes.DEFAULT_TYPE)
         text += "\n(Кнопки одобрения приходят в чат при подаче)"
 
     kb = [[InlineKeyboardButton("⬅️ Назад", callback_data="main_menu")]]
-    await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(kb), parse_mode="Markdown")
+    await send_or_edit(update, text, InlineKeyboardMarkup(kb))
 
 
 async def admin_settings(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    await query.answer()
+    if update.callback_query: await update.callback_query.answer()
     text = "⚙️ **Настройки бота**\n\nТариф: Стандарт\nБазовая цена: 1000 KZT\nМежгород: +2000 KZT"
     kb = [[InlineKeyboardButton("⬅️ Назад", callback_data="main_menu")]]
-    await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(kb), parse_mode="Markdown")
+    await send_or_edit(update, text, InlineKeyboardMarkup(kb))
 
 
 async def admin_decision(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -509,7 +607,7 @@ async def admin_decision(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if uid in users_db: users_db[uid]['role'] = 'courier'
         await query.edit_message_text(f"✅ Курьер {uid} одобрен.")
         try:
-            await context.bot.send_message(uid, "Вы приняты! Нажмите /start")
+            await context.bot.send_message(uid, "Вы приняты! Нажмите /start для обновления меню")
         except:
             pass
     else:
@@ -521,11 +619,14 @@ async def admin_decision(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # ==============================================================================
 
 def main():
-    application = Application.builder().token(API_TOKEN).build()
+    application = Application.builder().token(API_TOKEN).post_init(post_init).build()
 
     # Клиент: Создание заказа
     order_conv = ConversationHandler(
-        entry_points=[CallbackQueryHandler(start_create_order, pattern="^menu_create_order$")],
+        entry_points=[
+            CallbackQueryHandler(start_create_order, pattern="^menu_create_order$"),
+            MessageHandler(filters.Regex("^➕ Создать заказ$"), start_create_order)
+        ],
         states={
             ORDER_TYPE: [CallbackQueryHandler(order_type, pattern="^type_.*"),
                          CallbackQueryHandler(order_type, pattern="^cancel_order$")],
@@ -554,7 +655,6 @@ def main():
         per_message=False
     )
 
-    # --- РЕГИСТРАЦИЯ ХЕНДЛЕРОВ ---
     application.add_handler(CommandHandler("start", start))
     application.add_handler(order_conv)
     application.add_handler(courier_conv)
@@ -562,23 +662,43 @@ def main():
     # Общие
     application.add_handler(CallbackQueryHandler(main_menu_callback, pattern="^main_menu$|^role_client$"))
     application.add_handler(CallbackQueryHandler(help_handler, pattern="^menu_help$"))
+    application.add_handler(MessageHandler(filters.Regex("^❓ Помощь$"), help_handler))
 
-    # Клиент
+    # NEW HANDLER (Mini Apps) - старая кнопка (можно удалить, если не нужна)
+    application.add_handler(MessageHandler(filters.Regex("^📱 Mini Apps \(Скоро\)$"), mini_app_handler))
+
+    # Клиент (Text + Inline triggers)
     application.add_handler(CallbackQueryHandler(client_my_orders, pattern="^menu_my_orders$"))
-    application.add_handler(CallbackQueryHandler(client_track_order, pattern="^menu_track$"))
+    application.add_handler(MessageHandler(filters.Regex("^📦 Мои заказы$"), client_my_orders))
 
-    # Курьер
+    application.add_handler(CallbackQueryHandler(client_track_order, pattern="^menu_track$"))
+    application.add_handler(MessageHandler(filters.Regex("^🔍 Отследить$"), client_track_order))
+
+    # Курьер (Text + Inline triggers)
     application.add_handler(CallbackQueryHandler(courier_market, pattern="^courier_market$"))
+    application.add_handler(MessageHandler(filters.Regex("^📋 Доступные заказы$"), courier_market))
+
+    application.add_handler(CallbackQueryHandler(courier_active, pattern="^courier_active$"))
+    application.add_handler(MessageHandler(filters.Regex("^📦 Активные заказы$"), courier_active))
+
+    application.add_handler(CallbackQueryHandler(courier_stats, pattern="^courier_stats$"))
+    application.add_handler(MessageHandler(filters.Regex("^💰 Статистика$"), courier_stats))
+
+    # Смена статусов курьером
     application.add_handler(CallbackQueryHandler(courier_view_order, pattern="^courier_view_"))
     application.add_handler(CallbackQueryHandler(courier_take_order, pattern="^courier_take_"))
-    application.add_handler(CallbackQueryHandler(courier_active, pattern="^courier_active$"))
     application.add_handler(CallbackQueryHandler(status_update, pattern="^status_upd_"))
-    application.add_handler(CallbackQueryHandler(courier_stats, pattern="^courier_stats$"))
 
-    # Админ (ОТСУТСТВОВАЛИ В ПРОШЛОЙ ВЕРСИИ)
+    # Админ
     application.add_handler(CallbackQueryHandler(admin_all_orders, pattern="^admin_all_orders$"))
+    application.add_handler(MessageHandler(filters.Regex("^📋 Все заказы$"), admin_all_orders))
+
     application.add_handler(CallbackQueryHandler(admin_courier_apps, pattern="^admin_courier_apps$"))
+    application.add_handler(MessageHandler(filters.Regex("^🚴 Заявки курьеров$"), admin_courier_apps))
+
     application.add_handler(CallbackQueryHandler(admin_settings, pattern="^admin_settings$"))
+    application.add_handler(MessageHandler(filters.Regex("^⚙️ Настройки$"), admin_settings))
+
     application.add_handler(CallbackQueryHandler(admin_decision, pattern="^adm_"))
 
     print("Бот запущен...")
