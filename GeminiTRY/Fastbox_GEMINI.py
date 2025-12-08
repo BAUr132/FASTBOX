@@ -4,7 +4,9 @@ from telegram import (
     Update,
     InlineKeyboardButton,
     InlineKeyboardMarkup,
-    ReplyKeyboardMarkup
+    ReplyKeyboardMarkup,
+    WebAppInfo,  # Вернули для Web App
+    MenuButtonWebApp  # Вернули для кнопки меню
 )
 from telegram.ext import (
     Application,
@@ -28,6 +30,9 @@ ADMIN_IDS = [123456789]
 
 # 3. Список ID утвержденных курьеров
 APPROVED_COURIERS = []
+
+# 4. Ссылка на ваше Web App (ОБЯЗАТЕЛЬНО HTTPS)
+WEB_APP_URL = "https://telegram.org"
 
 # ==============================================================================
 # ЛОГИРОВАНИЕ
@@ -168,13 +173,18 @@ def get_reply_keyboard(role):
 async def post_init(application: Application):
     """
     Выполняется при запуске бота.
-    Здесь мы устанавливаем команды.
+    Здесь мы устанавливаем команды и кнопку Web App.
     """
     # 1. Установка команд
     await application.bot.set_my_commands([
         ("start", "🏠 Главное меню / Перезапуск"),
         ("help", "❓ Справка"),
     ])
+
+    # 2. Установка кнопки Web App с текстом "Сервис"
+    await application.bot.set_chat_menu_button(
+        menu_button=MenuButtonWebApp(text="Сервис", web_app=WebAppInfo(url=WEB_APP_URL))
+    )
 
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -227,7 +237,9 @@ async def help_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "— 'Мои заказы': список ваших отправлений.\n\n"
         "**Курьеру:**\n"
         "— 'Доступные': общая лента заказов.\n"
-        "— 'Активные': заказы в работе."
+        "— 'Активные': заказы в работе.\n\n"
+        "**Mini App:**\n"
+        "Нажмите кнопку 'Сервис' слева от поля ввода текста."
     )
     kb = [[InlineKeyboardButton("⬅️ В меню", callback_data="main_menu")]]
     await send_or_edit(update, text, InlineKeyboardMarkup(kb))
@@ -237,7 +249,7 @@ async def help_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def mini_app_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         "🚧 **Mini App**\n\n"
-        "Используйте кнопку **'Play'** слева внизу (рядом с полем ввода), чтобы открыть приложение.",
+        "Используйте кнопку **'Сервис'** слева внизу (рядом с полем ввода), чтобы открыть приложение.",
         parse_mode="Markdown"
     )
 
