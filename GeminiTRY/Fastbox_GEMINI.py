@@ -26,7 +26,7 @@ from telegram.ext import (
 API_TOKEN = "8571414658:AAG3-A-zzxoBIqxt9FqGewSKViHk5rSCtg0"
 
 # 2. Ваш Telegram ID
-ADMIN_IDS = [123456789]
+ADMIN_IDS = [7041571370]
 
 # 3. Список ID утвержденных курьеров
 APPROVED_COURIERS = []
