@@ -1,0 +1,18 @@
+services:
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "5174:5173"
+    volumes:
+      - .:/app
+      - /app/node_modules
+    environment:
+      - VITE_API_URL=http://localhost:80/api
+    networks:
+      - fastbox-laravel-system_sail
+
+networks:
+  fastbox-laravel-system_sail:
+    external: true
