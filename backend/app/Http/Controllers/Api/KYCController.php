@@ -26,8 +26,8 @@ class KYCController extends Controller
 
             // Update user record with path and set status to pending
             $user->update([
-                'id_card_photo' => $path,
-                'verification_status' => 'pending'
+                'id_card_photo' => $path, // Assuming this column exists, if not it will be ignored by $fillable
+                'kyc_status' => 'pending'
             ]);
 
             return response()->json([
@@ -37,5 +37,22 @@ class KYCController extends Controller
         }
 
         return response()->json(['error' => 'No file provided'], 400);
+    }
+
+    /**
+     * Instantly verify user for MVP/Demo purposes.
+     */
+    public function verify(Request $request): JsonResponse
+    {
+        $user = $request->user();
+        
+        $user->update([
+            'kyc_status' => 'verified'
+        ]);
+
+        return response()->json([
+            'message' => 'Identity verified successfully',
+            'user' => $user
+        ]);
     }
 }

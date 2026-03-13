@@ -38,4 +38,26 @@ class AuthController extends Controller
             'token' => $token
         ]);
     }
+
+    public function guestLogin(Request $request): JsonResponse
+    {
+        $request->validate([
+            'name' => 'required|string',
+            'phone' => 'required|string',
+        ]);
+
+        $user = User::create([
+            'name' => $request->name,
+            'phone' => $request->phone,
+            'role' => 'client',
+            'kyc_status' => 'none'
+        ]);
+
+        $token = $user->createToken('guest_auth')->plainTextToken;
+
+        return response()->json([
+            'user' => $user,
+            'token' => $token
+        ]);
+    }
 }

@@ -5,6 +5,7 @@ use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\OrderController;
 use App\Http\Controllers\Api\TripController;
 use App\Http\Controllers\Api\KYCController;
+use App\Http\Controllers\Api\ProfileController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -25,12 +26,15 @@ Route::get('/shops/{id}/menu', [ShopController::class, 'menu']);
 
 // Auth
 Route::post('/auth/telegram', [AuthController::class, 'login']);
+Route::post('/auth/guest', [AuthController::class, 'guestLogin']);
 
 // Authenticated Routes
 Route::middleware('auth:sanctum')->group(function () {
     // Orders
     Route::get('/orders', [OrderController::class, 'index']);
     Route::post('/orders', [OrderController::class, 'store']);
+    Route::post('/orders/{id}/accept', [OrderController::class, 'accept']);
+    Route::post('/orders/{id}/complete', [OrderController::class, 'complete']);
     
     // Intercity Trips
     Route::get('/trips', [TripController::class, 'index']);
@@ -38,4 +42,5 @@ Route::middleware('auth:sanctum')->group(function () {
     
     // KYC Verification
     Route::post('/kyc/upload', [KYCController::class, 'uploadID']);
+    Route::post('/kyc/verify', [ProfileController::class, 'verify']);
 });
