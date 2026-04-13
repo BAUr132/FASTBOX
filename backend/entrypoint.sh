@@ -1,22 +1,22 @@
 #!/bin/sh
 
-# ПРИНУДИТЕЛЬНО УДАЛЯЕМ .env, чтобы Laravel брал переменные из Railway
-if [ -f .env ]; then
-    echo "Deleting local .env file to use Railway Variables..."
-    rm .env
-fi
+# Создаем файл базы данных SQLite, если его нет
+mkdir -p /var/www/database
+touch /var/www/database/database.sqlite
+chmod -R 777 /var/www/database
 
-echo "--- DATABASE CONNECTION CHECK ---"
-echo "Host: $DB_HOST"
-echo "Database: $DB_DATABASE"
-echo "Connection: $DB_CONNECTION"
+echo "--- USING SQLITE FOR DEMO ---"
 
-# Очистка конфига, чтобы новые переменные точно подхватились
+# Принудительно устанавливаем переменные для SQLite
+export DB_CONNECTION=sqlite
+export DB_DATABASE=/var/www/database/database.sqlite
+
+# Очистка конфига
 php artisan config:clear
 
+# Миграции и сиды
 echo "Running migrations..."
 php artisan migrate --force
-
 echo "Seeding database..."
 php artisan db:seed --force
 
