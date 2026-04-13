@@ -1,17 +1,19 @@
 #!/bin/sh
 
-# Выполняем миграции (создание таблиц)
+echo "--- DATABASE CHECK ---"
+echo "Connecting to: $DB_HOST (Database: $DB_DATABASE, User: $DB_USERNAME)"
+echo "Connection type: $DB_CONNECTION"
+
+# Выполняем миграции
 echo "Running migrations..."
 php artisan migrate --force
 
-# Загружаем демо-данные (магазины, меню), если база пуста
+# Загружаем демо-данные
 echo "Seeding database..."
 php artisan db:seed --force
 
-# Запускаем PHP-FPM в фоновом режиме
 echo "Starting PHP-FPM..."
 php-fpm -D
 
-# Запускаем Nginx в основном режиме (держит контейнер активным)
 echo "Starting Nginx..."
 nginx -g "daemon off;"
