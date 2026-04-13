@@ -34,9 +34,9 @@ COPY . /var/www
 # Install PHP dependencies
 RUN composer install --no-dev --optimize-autoloader
 
-# Copy Nginx config
-COPY ./nginx-railway.conf /etc/nginx/sites-available/default
-RUN ln -sf /etc/nginx/sites-available/default /etc/nginx/sites-enabled/default
+# Copy Nginx config (overwrite EVERYTHING to be safe)
+RUN rm -rf /etc/nginx/sites-enabled/* /etc/nginx/sites-available/* /etc/nginx/conf.d/*
+COPY ./nginx-railway.conf /etc/nginx/conf.d/default.conf
 
 # Permissions
 RUN chown -R www-data:www-data /var/www/storage /var/www/bootstrap/cache
@@ -45,4 +45,4 @@ RUN chown -R www-data:www-data /var/www/storage /var/www/bootstrap/cache
 EXPOSE 80
 
 # Start script
-CMD service nginx start && php-fpm
+CMD service nginx restart && php-fpm
