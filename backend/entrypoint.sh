@@ -1,27 +1,30 @@
 #!/bin/sh
+set -e
 
-# Создаем файл базы данных SQLite, если его нет
+echo "--- FASTBOX MVP DEPLOY (SQLite) ---"
+
+# Создаем базу данных
 mkdir -p /var/www/database
 touch /var/www/database/database.sqlite
-chmod -R 777 /var/www/database
+chown -R www-data:www-data /var/www/database
+chmod -R 775 /var/www/database
 
-echo "--- USING SQLITE FOR DEMO ---"
-
-# Принудительно устанавливаем переменные для SQLite
 export DB_CONNECTION=sqlite
 export DB_DATABASE=/var/www/database/database.sqlite
 
-# Очистка конфига
+# Очистка и миграции
 php artisan config:clear
-
-# Миграции и сиды
-echo "Running migrations..."
+echo "Running migrations & seeding..."
 php artisan migrate --force
-echo "Seeding database..."
 php artisan db:seed --force
 
+# Запуск PHP-FPM
 echo "Starting PHP-FPM..."
 php-fpm -D
+
+# Даем время на создание сокета и ставим права
+sleep 2
+chmod 666 /var/run/php-fpm.sock
 
 echo "Starting Nginx..."
 nginx -g "daemon off;"
