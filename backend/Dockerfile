@@ -37,9 +37,9 @@ RUN composer install --no-dev --optimize-autoloader
 # Copy PHP-FPM config
 COPY ./www.conf /usr/local/etc/php-fpm.d/www.conf
 
-# Copy Nginx config (overwrite EVERYTHING to be safe)
+# Copy Nginx config (overwrite MAIN config)
 RUN rm -rf /etc/nginx/sites-enabled/* /etc/nginx/sites-available/* /etc/nginx/conf.d/*
-COPY ./nginx-railway.conf /etc/nginx/conf.d/default.conf
+COPY ./nginx-railway.conf /etc/nginx/nginx.conf
 
 # Permissions
 RUN chown -R www-data:www-data /var/www/storage /var/www/bootstrap/cache
