@@ -1,14 +1,22 @@
 #!/bin/sh
 
-echo "--- DATABASE CHECK ---"
-echo "Connecting to: $DB_HOST (Database: $DB_DATABASE, User: $DB_USERNAME)"
-echo "Connection type: $DB_CONNECTION"
+# ПРИНУДИТЕЛЬНО УДАЛЯЕМ .env, чтобы Laravel брал переменные из Railway
+if [ -f .env ]; then
+    echo "Deleting local .env file to use Railway Variables..."
+    rm .env
+fi
 
-# Выполняем миграции
+echo "--- DATABASE CONNECTION CHECK ---"
+echo "Host: $DB_HOST"
+echo "Database: $DB_DATABASE"
+echo "Connection: $DB_CONNECTION"
+
+# Очистка конфига, чтобы новые переменные точно подхватились
+php artisan config:clear
+
 echo "Running migrations..."
 php artisan migrate --force
 
-# Загружаем демо-данные
 echo "Seeding database..."
 php artisan db:seed --force
 
