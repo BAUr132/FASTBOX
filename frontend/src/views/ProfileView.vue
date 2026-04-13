@@ -15,13 +15,12 @@ const fetchOrders = async () => {
   loading.value = true;
   try {
     const response = await api.get('/orders');
-    const mockOrders = JSON.parse(localStorage.getItem('fb_mock_orders') || '[]');
-    // Объединяем реальные и моки для истории
-    orders.value = [...mockOrders.reverse(), ...response.data];
+    const all = Array.isArray(response.data) ? response.data : Object.values(response.data);
+    // Берем только те, которые создал этот пользователь (как клиент)
+    orders.value = all.filter(o => o.user_id === authStore.user?.id);
   } catch (error) {
     console.warn('Failed to fetch orders, using mocks:', error);
-    const mockOrders = JSON.parse(localStorage.getItem('fb_mock_orders') || '[]');
-    orders.value = mockOrders.reverse();
+    orders.value = [];
   } finally {
     loading.value = false;
   }
@@ -30,45 +29,25 @@ const fetchOrders = async () => {
 const completeOrder = async (orderId) => {
   const tg = window.Telegram?.WebApp;
   try {
-    // ЗАКОММЕНТИРОВАНО: await api.post(`/orders/${orderId}/complete`);
-    
-    // Мокаем завершение в localStorage
-    const mockOrders = JSON.parse(localStorage.getItem('fb_mock_orders') || '[]');
-    const order = mockOrders.find(o => o.id === orderId);
-    if (order) order.status = 'completed';
-    localStorage.setItem('fb_mock_orders', JSON.stringify(mockOrders));
-
+    await api.post(`/orders/${orderId}/complete`);
     if (tg) tg.showAlert('Заказ успешно завершен!');
-    else alert('Заказ завершен!');
     fetchOrders(); 
   } catch (error) {
-    console.warn('Complete backend failed, using mock:', error);
-    const mockOrders = JSON.parse(localStorage.getItem('fb_mock_orders') || '[]');
-    const order = mockOrders.find(o => o.id === orderId);
-    if (order) order.status = 'completed';
-    localStorage.setItem('fb_mock_orders', JSON.stringify(mockOrders));
-    
-    if (tg) tg.showAlert('Заказ успешно завершен!');
-    fetchOrders();
+    console.warn('Complete backend failed:', error);
   }
 };
 
-const simulateKYCUpload = async () => {
-  isUploading.value = true;
-  const tg = window.Telegram?.WebApp;
-  
-  // MOCK VERIFICATION for Presentation
-  setTimeout(() => {
-    authStore.user.kyc_status = 'verified';
-    localStorage.setItem('fb_user', JSON.stringify(authStore.user));
-    
-    if (tg) {
-      tg.showAlert('Успешно верифицировано!');
-    } else {
-      alert('Успешно верифицировано!');
+const confirmOrderHandshake = async (orderId) => {
+  try {
+    const response = await api.post(`/orders/${orderId}/confirm-qr`);
+    if (response.data.success) {
+      const tg = window.Telegram?.WebApp;
+      if (tg) tg.showAlert('✅ Сделка защищена. Посылка в пути!');
+      fetchOrders();
     }
-    isUploading.value = false;
-  }, 1000);
+  } catch (error) {
+    console.error('QR Confirm Error:', error);
+  }
 };
 
 onMounted(() => {
@@ -78,8 +57,8 @@ onMounted(() => {
 const getStatusLabel = (status) => {
   const map = {
     'new': 'Новый',
-    'accepted': 'В пути',
-    'delivering': 'Доставка',
+    'accepted': 'Принят',
+    'delivering': 'В пути',
     'completed': 'Выполнен',
     'cancelled': 'Отменен'
   };
@@ -90,6 +69,7 @@ const getStatusClass = (status) => {
   switch(status) {
     case 'new': return 'bg-blue-100 text-blue-700';
     case 'accepted': return 'bg-amber-100 text-amber-700';
+    case 'delivering': return 'bg-purple-100 text-purple-700';
     case 'completed': return 'bg-green-100 text-green-700';
     case 'cancelled': return 'bg-red-100 text-red-700';
     default: return 'bg-gray-100 text-gray-700';
@@ -114,22 +94,10 @@ const getStatusClass = (status) => {
         </div>
         <div>
           <h3 class="text-xl font-bold text-gray-900 dark:text-white">{{ authStore.user?.name || 'Гость' }}</h3>
-          <p class="text-sm font-medium" :class="authStore.user?.kyc_status === 'verified' ? 'text-green-500' : 'text-amber-500'">
-            {{ authStore.user?.kyc_status === 'verified' ? 'Верифицирован ✅' : 'Требуется проверка ⚠️' }}
+          <p class="text-sm font-medium text-green-500">
+            Активный пользователь ✅
           </p>
         </div>
-      </div>
-
-      <!-- KYC Upload Section -->
-      <div v-if="authStore.user?.kyc_status !== 'verified'" class="bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800 rounded-3xl p-6 transition-colors duration-300">
-         <h4 class="font-bold text-blue-800 dark:text-blue-300 mb-2">Верификация личности</h4>
-         <p class="text-xs text-blue-600 dark:text-blue-400 mb-4">Для доступа к услугам вызова курьера и межгорода (P2P) необходимо загрузить удостоверение личности.</p>
-         
-         <button @click="simulateKYCUpload" :disabled="isUploading" class="w-full bg-blue-600 text-white font-bold py-3 rounded-2xl shadow-lg active:scale-95 transition-all flex items-center justify-center gap-2">
-           <i v-if="isUploading" class="fas fa-spinner animate-spin"></i>
-           <i v-else class="fas fa-upload"></i>
-           <span>{{ isUploading ? 'Загрузка...' : 'Загрузить паспорт' }}</span>
-         </button>
       </div>
 
       <!-- Quick Actions -->
@@ -148,40 +116,49 @@ const getStatusClass = (status) => {
       <div class="space-y-4">
         <h3 class="text-lg font-bold px-1 text-gray-900 dark:text-white">История и Доставки</h3>
         
+        <!-- Loading State -->
         <div v-if="loading" class="text-center py-10 opacity-50 flex flex-col items-center gap-2">
            <i class="fas fa-circle-notch animate-spin text-2xl text-blue-600"></i>
         </div>
         
-        <div v-else-if="orders.length === 0" class="bg-white dark:bg-gray-800 rounded-3xl p-10 text-center border border-dashed border-gray-200 dark:border-gray-700">
+        <!-- Empty State (Only if not loading AND length is 0) -->
+        <div v-if="!loading && (!orders || orders.length === 0)" class="bg-white dark:bg-gray-800 rounded-3xl p-10 text-center border border-dashed border-gray-200 dark:border-gray-700">
            <p class="text-gray-500 dark:text-gray-400 text-sm">Здесь пока ничего нет</p>
         </div>
 
-        <div v-else v-for="order in orders" :key="order.id" class="bg-white dark:bg-gray-800 p-5 rounded-3xl shadow-sm border border-gray-100 dark:border-gray-700">
-           <div class="flex justify-between items-start mb-3">
-             <div>
-                <span class="font-black text-gray-900 dark:text-white">№{{ order.id }}</span>
-                <p class="text-[10px] text-gray-400 uppercase font-black">{{ order.type === 'shop' ? 'Магазин' : (order.type === 'intercity' ? 'Межгород' : 'Курьер') }}</p>
+        <!-- Orders Grid (Only if not loading AND length > 0) -->
+        <div v-if="!loading && orders && orders.length > 0" class="space-y-4">
+          <div v-for="order in orders" :key="order.id" class="bg-white dark:bg-gray-800 p-5 rounded-3xl shadow-sm border border-gray-100 dark:border-gray-700">
+             <div class="flex justify-between items-start mb-3">
+               <div>
+                  <span class="font-black text-gray-900 dark:text-white">№{{ order.id }}</span>
+                  <p class="text-[10px] text-gray-400 uppercase font-black">{{ order.type === 'shop' ? 'Магазин' : (order.type === 'intercity' ? 'Межгород' : 'Курьер') }}</p>
+               </div>
+               <span class="px-3 py-1 rounded-full text-[10px] font-black uppercase" :class="getStatusClass(order.status)">
+                 {{ getStatusLabel(order.status) }}
+               </span>
              </div>
-             <span class="px-3 py-1 rounded-full text-[10px] font-black uppercase" :class="getStatusClass(order.status)">
-               {{ getStatusLabel(order.status) }}
-             </span>
-           </div>
+  
+             <div v-if="order.pickup_address || order.delivery_address" class="space-y-1 mb-4">
+                <p v-if="order.pickup_address" class="text-[11px] text-gray-500 truncate"><i class="fas fa-map-marker-alt mr-1"></i> {{ order.pickup_address }}</p>
+                <p v-if="order.delivery_address" class="text-[11px] text-gray-500 truncate"><i class="fas fa-flag-checkered mr-1"></i> {{ order.delivery_address }}</p>
+             </div>
+  
+             <div class="flex justify-between items-center pt-3 border-t dark:border-gray-700">
+                <span class="font-black text-blue-600 dark:text-blue-400">{{ order.total_price || order.delivery_fee }} ₸</span>
 
-           <div v-if="order.pickup_address || order.delivery_address" class="space-y-1 mb-4">
-              <p v-if="order.pickup_address" class="text-[11px] text-gray-500 truncate"><i class="fas fa-map-marker-alt mr-1"></i> {{ order.pickup_address }}</p>
-              <p v-if="order.delivery_address" class="text-[11px] text-gray-500 truncate"><i class="fas fa-flag-checkered mr-1"></i> {{ order.delivery_address }}</p>
-           </div>
-
-           <div class="flex justify-between items-center pt-3 border-t dark:border-gray-700">
-              <span class="font-black text-blue-600 dark:text-blue-400">{{ order.total_price || order.delivery_fee }} ₸</span>
-              
-              <!-- Action for Courier -->
-              <button v-if="order.status === 'accepted' && authStore.user && order.courier_id === authStore.user.id" 
-                      @click="completeOrder(order.id)"
-                      class="bg-green-600 text-white text-[10px] font-black uppercase px-4 py-2 rounded-xl active:scale-95 transition">
-                 Завершить
-              </button>
-           </div>
+                <div class="flex flex-col gap-2 w-full mt-2">
+                  <!-- Action for Customer: Scan QR -->
+                  <button v-if="order.status === 'accepted'" 
+                          @click="confirmOrderHandshake(order.id)"
+                          class="w-full bg-blue-600 text-white text-[10px] font-black uppercase px-4 py-3 rounded-xl active:scale-95 transition flex items-center justify-center gap-2 shadow-lg shadow-blue-500/20">
+                     <i class="fas fa-qrcode"></i> Отсканировать QR курьера
+                  </button>
+                  <div v-if="order.status === 'delivering'" class="text-[10px] text-purple-600 font-bold text-center bg-purple-50 p-2 rounded-lg border border-purple-200">
+                     Заказ в пути! Ожидайте доставки.
+                  </div>
+                </div>
+             </div>          </div>
         </div>
       </div>
     </div>

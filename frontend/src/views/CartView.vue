@@ -32,7 +32,8 @@ const checkout = async () => {
         alert('Заказ успешно оформлен! Способ оплаты: ' + (paymentMethod.value === 'card' ? 'Картой' : 'Наличными'));
       }
       
-      emit('navigate', 'main');
+      // REDIRECT TO PROFILE
+      emit('navigate', 'profile');
     } catch (error) {
       if (tg) {
         tg.MainButton.hideProgress();

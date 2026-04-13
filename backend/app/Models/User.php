@@ -12,7 +12,7 @@ class User extends Authenticatable
     use HasApiTokens, HasFactory, Notifiable;
 
     protected $fillable = [
-        'name', 'email', 'password', 'telegram_id', 'phone', 'role', 'kyc_status'
+        'name', 'email', 'password', 'telegram_id', 'phone', 'role'
     ];
 
     protected $hidden = [

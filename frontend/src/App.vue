@@ -6,10 +6,12 @@ import ShopListView from './views/ShopListView.vue';
 import MenuView from './views/MenuView.vue';
 import CartView from './views/CartView.vue';
 import ProfileView from './views/ProfileView.vue';
+import CourierProfileView from './views/CourierProfileView.vue';
 import IntercityView from './views/IntercityView.vue';
 import CourierOrdersView from './views/CourierOrdersView.vue';
 import { useCartStore } from './store/useCart';
 import { useAuthStore } from './store/useAuth';
+import logo from './assets/logo.png';
 
 const currentScreen = ref('main');
 const selectedShop = ref(null);
@@ -93,8 +95,9 @@ const login = () => {
     <!-- Auth Screen for Browser -->
     <div v-if="!authStore.isAuthenticated && !authStore.isTelegram" class="min-h-screen flex items-center justify-center p-6 bg-blue-600">
        <div class="bg-white dark:bg-gray-800 p-8 rounded-[2.5rem] w-full max-w-md shadow-2xl">
-          <div class="text-4xl mb-6 text-center">📦</div>
-          <h2 class="text-2xl font-black text-center mb-2">FastBox</h2>
+          <div class="flex justify-center mb-6">
+            <img :src="logo" alt="FastBox Logo" class="h-16 w-auto">
+          </div>
           <p class="text-gray-500 text-center mb-8">Введите ваше имя для входа</p>
           
           <input v-model="guestName" type="text" placeholder="Имя Фамилия" class="w-full p-4 rounded-2xl bg-gray-50 dark:bg-gray-700 border-none mb-4 outline-none focus:ring-2 focus:ring-blue-500 transition-all">
@@ -109,9 +112,8 @@ const login = () => {
     <div v-else>
       <!-- Fixed Header with Profile -->
       <header v-if="currentScreen === 'main'" class="p-4 flex justify-between items-center bg-white dark:bg-gray-800 shadow-sm transition-colors duration-300">
-        <div class="flex items-center gap-2">
-           <span class="text-2xl">📦</span>
-           <h1 class="font-black text-xl tracking-tight">FastBox</h1>
+        <div class="flex items-center">
+           <img :src="logo" alt="FastBox" class="h-8 w-auto">
         </div>
         <button @click="handleNavigation('profile')" class="w-10 h-10 rounded-full bg-gray-100 dark:bg-gray-700 flex items-center justify-center text-blue-600">
            <i class="fas fa-user"></i>
@@ -140,7 +142,8 @@ const login = () => {
         </div>
 
         <div v-else-if="currentScreen === 'profile'" key="profile">
-          <ProfileView @navigate="handleNavigation" />
+          <CourierProfileView v-if="authStore.isCourierMode" @navigate="handleNavigation" />
+          <ProfileView v-else @navigate="handleNavigation" />
         </div>
 
         <div v-else-if="currentScreen === 'intercity'" key="intercity">

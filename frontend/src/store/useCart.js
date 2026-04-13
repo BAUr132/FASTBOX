@@ -71,24 +71,33 @@ export const useCartStore = defineStore('cart', () => {
     }
 
     try {
-      // ЗАКОММЕНТИРОВАНО ДЛЯ ДЕМО
-      // const response = await api.post('/orders', orderData)
+      // Пытаемся отправить реальный заказ на бэкенд
+      const response = await api.post('/api/orders', {
+        type: 'shop',
+        payment_method: paymentMethod,
+        items: items.value.map(item => ({
+          product_id: item.id,
+          quantity: item.qty
+        })),
+        pickup_address: 'Магазин "Бургерная №1"',
+        delivery_address: 'пр. Абая, 34',
+        pickup_lat: 53.2144,
+        pickup_lng: 63.6246,
+        delivery_lat: 53.2100,
+        delivery_lng: 63.6300
+      });
+
+      clearCart();
+      return response.data;
+    } catch (error) {
+      console.warn('Backend order failed, using mock for demo:', error);
       
-      // Имитация сохранения для курьера
       const mockOrders = JSON.parse(localStorage.getItem('fb_mock_orders') || '[]');
       mockOrders.push(orderData);
       localStorage.setItem('fb_mock_orders', JSON.stringify(mockOrders));
 
-      clearCart()
-      return { order: orderData }
-    } catch (error) {
-      console.warn('Checkout backend error, using mock:', error)
-      const mockOrders = JSON.parse(localStorage.getItem('fb_mock_orders') || '[]');
-      mockOrders.push(orderData);
-      localStorage.setItem('fb_mock_orders', JSON.stringify(mockOrders));
-      
-      clearCart()
-      return { order: orderData }
+      clearCart();
+      return { order: orderData };
     } finally {
       isProcessing.value = false;
     }

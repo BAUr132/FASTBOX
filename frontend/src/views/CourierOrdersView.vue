@@ -9,16 +9,13 @@ const loading = ref(true);
 const fetchAvailableOrders = async () => {
   loading.value = true;
   try {
-    // ЗАКОММЕНТИРОВАНО: const response = await api.get('/orders');
-    // ЗАКОММЕНТИРОВАНО: orders.value = response.data.filter(o => o.status === 'new');
-    
-    // ЧИТАЕМ ИЗ МОК-ХРАНИЛИЩА (ДЛЯ ДЕМО)
-    const mockOrders = JSON.parse(localStorage.getItem('fb_mock_orders') || '[]');
-    orders.value = mockOrders.filter(o => o.status === 'new');
+    const response = await api.get('/orders');
+    const allOrders = Array.isArray(response.data) ? response.data : Object.values(response.data);
+    // Показывать только новые заказы, которые еще никто не взял
+    orders.value = allOrders.filter(o => o.status === 'new');
   } catch (error) {
-    console.warn('Failed to fetch available orders from backend, using mocks:', error);
-    const mockOrders = JSON.parse(localStorage.getItem('fb_mock_orders') || '[]');
-    orders.value = mockOrders.filter(o => o.status === 'new');
+    console.warn('Failed to fetch available orders from backend:', error);
+    orders.value = [];
   } finally {
     loading.value = false;
   }
@@ -28,23 +25,17 @@ const acceptOrder = async (orderId) => {
   const tg = window.Telegram?.WebApp;
   try {
     await api.post(`/orders/${orderId}/accept`);
+    
     if (tg) {
-      tg.showAlert(`Вы успешно откликнулись на заказ #${orderId}! Ожидайте подтверждения.`);
+      tg.showAlert(`✅ Вы приняли заказ #${orderId}! Он теперь в вашем профиле.`);
     } else {
-      alert(`Вы успешно откликнулись на заказ #${orderId}! Ожидайте подтверждения.`);
+      alert(`Вы приняли заказ #${orderId}!`);
     }
     orders.value = orders.value.filter(o => o.id !== orderId);
     emit('navigate', 'profile'); 
   } catch (error) {
-    console.warn('Accept backend failed, using fallback alert:', error);
-    // EMERGENCY MOCK for Presentation
-    if (tg) {
-      tg.showAlert(`Вы успешно откликнулись на заказ #${orderId}! Ожидайте подтверждения.`);
-    } else {
-      alert(`Вы успешно откликнулись на заказ #${orderId}! Ожидайте подтверждения.`);
-    }
-    orders.value = orders.value.filter(o => o.id !== orderId);
-    emit('navigate', 'profile');
+    console.error('Accept backend failed:', error);
+    if (tg) tg.showAlert('Не удалось принять заказ. Возможно, его уже взял другой курьер.');
   }
 };
 

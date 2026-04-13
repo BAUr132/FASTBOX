@@ -1,9 +1,11 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue';
+import { useAuthStore } from '../store/useAuth';
 import { useCartStore } from '../store/useCart';
 import api from '../api/axios';
 
 const emit = defineEmits(['navigate']);
+const authStore = useAuthStore();
 const cartStore = useCartStore();
 
 const fromCity = ref('');
@@ -12,83 +14,120 @@ const trips = ref([]);
 const isSearching = ref(false);
 const selectedTrip = ref(null);
 const packageWeight = ref(1);
+const viewMode = ref('find'); // 'find' or 'post'
 
-onMounted(async () => {
-  await cartStore.authenticate();
-  window.addEventListener('tg-main-button-click', handleOrder);
-});
-
-onUnmounted(() => {
-  window.removeEventListener('tg-main-button-click', handleOrder);
-});
-
-const searchTrips = async () => {
-  if (!fromCity.value || !toCity.value) return;
-  
+const fetchTrips = async () => {
   isSearching.value = true;
   try {
-    const response = await api.get('/trips', {
-      params: {
-        from_city: fromCity.value,
-        to_city: toCity.value
-      }
-    });
+    const response = await api.get('/api/trips');
     trips.value = response.data;
-  } catch (e) {
-    console.error('Search failed:', e);
+  } catch (error) {
+    console.error('Error fetching trips:', error);
   } finally {
     isSearching.value = false;
   }
 };
 
-const isVerified = computed(() => {
-  return true; // ALWAYS TRUE FOR PRESENTATION
-});
+const searchTrips = async () => {
+  isSearching.value = true;
+  try {
+    const response = await api.get('/api/trips');
+    trips.value = response.data.filter(t => 
+      (!fromCity.value || t.from_city.toLowerCase().includes(fromCity.value.toLowerCase())) &&
+      (!toCity.value || t.to_city.toLowerCase().includes(toCity.value.toLowerCase()))
+    );
+  } catch (error) {
+    console.error('Error searching trips:', error);
+  } finally {
+    isSearching.value = false;
+  }
+};
+
+const selectTrip = (trip) => {
+  selectedTrip.value = trip;
+  const tg = window.Telegram?.WebApp;
+  if (tg) {
+    tg.MainButton.text = "Забронировать (" + (packageWeight.value * trip.price_per_kg) + " ₸)";
+    tg.MainButton.show();
+  }
+};
+
+const isVerified = computed(() => authStore.user?.kyc_status === 'verified');
 
 const handleOrder = async () => {
   if (!selectedTrip.value) return;
-
   const tg = window.Telegram?.WebApp;
-  try {
-    if (tg) tg.MainButton.showProgress();
+  if (tg) tg.MainButton.showProgress();
 
-    const response = await api.post('/orders', {
+  try {
+    await api.post('/api/orders', {
       type: 'intercity',
       trip_id: selectedTrip.value.id,
-      pickup_address: `Межгород: ${fromCity.value}`,
-      delivery_address: `Межгород: ${toCity.value}`,
-      package_details: `Вес: ${packageWeight.value} кг`
+      pickup_address: `Межгород: ${selectedTrip.value.from_city}`,
+      delivery_address: `Межгород: ${selectedTrip.value.to_city}`,
+      package_details: `Вес: ${packageWeight.value} кг`,
+      payment_method: 'cash'
     });
 
-    const result = response.data;
-
     if (tg) {
       tg.MainButton.hideProgress();
-      tg.showAlert(`Попутный заказ #${result.order?.id || 'OK'} оформлен!`);
-    } else {
-      alert(`Заказ оформлен!`);
+      tg.MainButton.hide();
+      tg.showAlert(`✅ Место забронировано! Водитель ${selectedTrip.value.driver_name} свяжется с вами. Напоминание: упаковка посылки должна происходить в вашем присутствии!`);
     }
     emit('navigate', 'main');
-
-  } catch (e) {
-    console.warn('Intercity order backend failed, using mock success:', e);
+  } catch (error) {
     if (tg) {
       tg.MainButton.hideProgress();
-      tg.showAlert(`Заказ успешно оформлен! (Демо-режим)`);
-    } else {
-      alert(`Заказ успешно оформлен! (Демо-режим)`);
+      tg.showAlert('Ошибка при бронировании. Попробуйте позже.');
     }
-    emit('navigate', 'main');
   }
 };
 
-const navigateToKYC = () => {
-  if (window.Telegram?.WebApp) {
-    window.Telegram.WebApp.showAlert('Для доступа к межгороду (P2P), пожалуйста, загрузите удостоверение личности в профиле.');
-  } else {
-    alert('Верификация требуется');
+const packageDetails = ref('');
+
+const handlePostRequest = async () => {
+  const tg = window.Telegram?.WebApp;
+  if (tg) tg.MainButton.showProgress();
+
+  try {
+    await api.post('/orders', {
+      type: 'intercity',
+      pickup_address: `Межгород: ${fromCity.value || 'Не указан'}`,
+      delivery_address: `Межгород: ${toCity.value || 'Не указан'}`,
+      package_details: `${packageDetails.value} (Вес: ${packageWeight.value} кг)`,
+      payment_method: 'cash'
+    });
+
+    if (tg) {
+      tg.MainButton.hideProgress();
+      tg.MainButton.hide();
+      tg.showAlert("✅ Ваша заявка опубликована! Теперь она видна в вашем личном кабинете.");
+    } else {
+      alert("✅ Заявка опубликована! Переходим в личный кабинет.");
+    }
+    // REDIRECT TO PROFILE TO SHOW SUCCESS
+    emit('navigate', 'profile');
+  } catch (error) {
+    console.error('Error posting request:', error);
+    if (tg) {
+      tg.MainButton.hideProgress();
+      tg.showAlert('Ошибка при создании заявки. Проверьте соединение.');
+    }
   }
 };
+
+onMounted(() => {
+  fetchTrips();
+  window.addEventListener('tg-main-button-click', () => {
+    if (viewMode.value === 'find') handleOrder();
+    else handlePostRequest();
+  });
+});
+
+onUnmounted(() => {
+  window.removeEventListener('tg-main-button-click', () => {});
+  window.Telegram?.WebApp?.MainButton.hide();
+});
 </script>
 
 <template>
@@ -101,26 +140,21 @@ const navigateToKYC = () => {
     </header>
 
     <div class="p-6">
-      <!-- KYC Alert if not verified -->
-      <div v-if="!isVerified" class="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-2xl p-4 mb-6">
-         <div class="flex gap-3 text-amber-800 dark:text-amber-300">
-           <i class="fas fa-id-card text-2xl"></i>
-           <div>
-             <h4 class="font-bold text-sm">Нужна верификация</h4>
-             <p class="text-xs opacity-80">Для P2P-перевозок между городами необходимо подтвердить личность.</p>
-           </div>
-         </div>
-         <button @click="navigateToKYC" class="w-full mt-3 bg-amber-500 text-white font-bold py-2 rounded-xl text-sm active:scale-95 transition-transform">
-           Загрузить паспорт
-         </button>
+      <div class="flex bg-gray-100 dark:bg-gray-800 p-1 rounded-2xl mb-6">
+        <button @click="viewMode = 'find'" :class="viewMode === 'find' ? 'bg-white dark:bg-gray-700 shadow-sm text-blue-600' : 'text-gray-500'" class="flex-1 py-3 rounded-xl font-bold text-sm transition-all">
+          Найти водителя
+        </button>
+        <button @click="viewMode = 'post'" :class="viewMode === 'post' ? 'bg-white dark:bg-gray-700 shadow-sm text-blue-600' : 'text-gray-500'" class="flex-1 py-3 rounded-xl font-bold text-sm transition-all">
+          Оставить заявку
+        </button>
       </div>
 
-      <div class="bg-white dark:bg-gray-800 rounded-[2rem] shadow-xl p-6 border dark:border-gray-700" :class="{'opacity-50 pointer-events-none': !isVerified}">
+      <div class="bg-white dark:bg-gray-800 rounded-[2rem] shadow-xl p-6 border dark:border-gray-700">
         <div class="space-y-4">
           <div class="grid grid-cols-2 gap-4">
             <div>
               <label class="block text-xs font-bold text-gray-500 mb-1">Город отправления</label>
-              <input v-model="fromCity" @input="searchTrips" type="text" placeholder="Алматы" class="w-full bg-gray-50 dark:bg-gray-700 text-sm border-none rounded-xl p-3 outline-none focus:ring-2 focus:ring-blue-500">
+              <input v-model="fromCity" @input="searchTrips" type="text" placeholder="Костанай" class="w-full bg-gray-50 dark:bg-gray-700 text-sm border-none rounded-xl p-3 outline-none focus:ring-2 focus:ring-blue-500">
             </div>
             <div>
               <label class="block text-xs font-bold text-gray-500 mb-1">Город прибытия</label>
@@ -128,37 +162,84 @@ const navigateToKYC = () => {
             </div>
           </div>
 
-          <div v-if="trips.length > 0" class="mt-6 space-y-3">
-            <h3 class="font-bold text-sm text-gray-700 dark:text-gray-300 px-1">Доступные поездки</h3>
-            <div v-for="trip in trips" :key="trip.id" @click="selectTrip(trip)" class="p-4 rounded-2xl border-2 transition-all" :class="selectedTrip?.id === trip.id ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20' : 'border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-800'">
-              <div class="flex justify-between items-center">
-                <div>
-                   <p class="font-bold text-blue-600">{{ trip.from_city }} ➔ {{ trip.to_city }}</p>
-                   <p class="text-xs text-gray-500">{{ new Date(trip.departure_time).toLocaleString() }}</p>
+          <div v-if="viewMode === 'find'">
+            <div v-if="isSearching" class="text-center py-10">
+               <div class="animate-spin text-blue-600 text-2xl inline-block mb-2">🔄</div>
+               <p class="text-xs text-gray-500">Поиск поездок...</p>
+            </div>
+            
+            <div v-else-if="trips.length > 0" class="mt-6 space-y-3">
+              <h3 class="font-bold text-sm text-gray-700 dark:text-gray-300 px-1">Доступные поездки</h3>
+              <div v-for="trip in trips" :key="trip.id" @click="selectTrip(trip)" class="p-4 rounded-2xl border-2 transition-all" :class="selectedTrip?.id === trip.id ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20' : 'border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-800'">
+                <div class="flex justify-between items-start mb-2">
+                  <div>
+                    <p class="font-bold text-blue-600">{{ trip.from_city }} ➔ {{ trip.to_city }}</p>
+                    <p class="text-[10px] text-gray-500 flex items-center gap-1 mt-1">
+                      <i class="fas fa-car"></i> {{ trip.transport_details || 'Попутка' }}
+                    </p>
+                  </div>
+                  <div class="text-right">
+                    <p class="font-black text-gray-900 dark:text-white">{{ trip.price_per_kg }} ₸/кг</p>
+                    <p class="text-[10px] text-blue-500 font-bold">Водитель: {{ trip.user?.name || trip.driver_name || 'Александр' }}</p>
+                  </div>
                 </div>
-                <div class="text-right">
-                   <p class="font-black text-gray-900 dark:text-white">{{ trip.price_per_kg }} ₸/кг</p>
-                   <p class="text-[10px] text-green-500 font-bold">Свободно: {{ trip.available_weight }} кг</p>
+                <div class="grid grid-cols-2 gap-2 pt-2 border-t dark:border-gray-700 mt-2">
+                  <div>
+                      <p class="text-[9px] text-gray-400 uppercase font-bold">Выезд</p>
+                      <p class="text-xs font-bold">{{ new Date(trip.departure_date).toLocaleString('ru-RU', {day:'numeric', month:'short', hour:'2-digit', minute:'2-digit'}) }}</p>
+                  </div>
+                  <div>
+                      <p class="text-[9px] text-gray-400 uppercase font-bold">Статус</p>
+                      <p class="text-xs font-bold text-green-600">Активен</p>
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
-          
-          <div v-else-if="fromCity && toCity && !isSearching" class="text-center py-10">
-             <i class="fas fa-search text-3xl text-gray-300 mb-2"></i>
-             <p class="text-xs text-gray-500">Поездок по этому маршруту пока нет</p>
+            
+            <div v-else class="text-center py-10">
+              <i class="fas fa-search text-3xl text-gray-300 mb-2"></i>
+              <p class="text-xs text-gray-500">Поездок по этому маршруту пока нет</p>
+            </div>
+
+            <div v-if="selectedTrip" class="pt-4 mt-4 border-t dark:border-gray-700 space-y-4">
+              <div class="bg-blue-50 dark:bg-blue-900/20 p-3 rounded-xl border border-blue-100 dark:border-blue-800 flex gap-3">
+                  <i class="fas fa-info-circle text-blue-500 mt-0.5"></i>
+                  <p class="text-[10px] text-blue-700 dark:text-blue-300 font-medium leading-relaxed">
+                    Важно: упаковка посылки в присутствии водителя. Это необходимо для безопасности.
+                  </p>
+              </div>
+              <div>
+                <label class="block text-xs font-bold text-gray-500 mb-1">Вес посылки (кг)</label>
+                <div class="flex items-center gap-4">
+                  <input v-model.number="packageWeight" @input="selectTrip(selectedTrip)" type="range" min="1" max="10" class="flex-1 accent-blue-600">
+                  <span class="font-bold text-blue-600">{{ packageWeight }} кг</span>
+                </div>
+              </div>
+              <div class="p-3 bg-gray-100 dark:bg-gray-700 rounded-xl flex justify-between">
+                  <span class="text-sm font-bold">К оплате:</span>
+                  <span class="text-sm font-black text-blue-600">{{ packageWeight * selectedTrip.price_per_kg }} ₸</span>
+              </div>
+            </div>
           </div>
 
-          <div v-if="selectedTrip" class="pt-4 mt-4 border-t dark:border-gray-700">
-             <label class="block text-xs font-bold text-gray-500 mb-1">Вес посылки (кг)</label>
-             <div class="flex items-center gap-4">
-               <input v-model.number="packageWeight" type="range" min="1" max="10" class="flex-1 accent-blue-600">
-               <span class="font-bold text-blue-600">{{ packageWeight }} кг</span>
-             </div>
-             <div class="mt-4 p-3 bg-gray-100 dark:bg-gray-700 rounded-xl flex justify-between">
-                <span class="text-sm font-bold">Итого (предварительно):</span>
-                <span class="text-sm font-black">{{ packageWeight * selectedTrip.price_per_kg }} ₸</span>
-             </div>
+          <div v-else class="pt-4 space-y-4">
+            <div class="bg-green-50 dark:bg-green-900/20 p-4 rounded-2xl border border-green-100 dark:border-green-800">
+               <p class="text-xs text-green-700 dark:text-green-400 leading-relaxed font-bold">
+                 Опубликуйте заявку, чтобы водители могли предложить вам свои услуги.
+               </p>
+            </div>
+            <div>
+              <label class="block text-xs font-bold text-gray-500 mb-1">Что отправляем?</label>
+              <input v-model="packageDetails" type="text" placeholder="Коробка, документы..." class="w-full bg-gray-50 dark:bg-gray-700 text-sm border-none rounded-xl p-3 outline-none">
+            </div>
+            <div>
+              <label class="block text-xs font-bold text-gray-500 mb-1">Примерный вес (кг)</label>
+              <input v-model.number="packageWeight" type="number" class="w-full bg-gray-50 dark:bg-gray-700 text-sm border-none rounded-xl p-3 outline-none">
+            </div>
+            
+            <button @click="handlePostRequest" class="w-full bg-green-600 text-white font-bold py-4 rounded-2xl shadow-lg active:scale-95 transition mt-4">
+               Опубликовать заявку
+            </button>
           </div>
         </div>
       </div>

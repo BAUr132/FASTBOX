@@ -1,6 +1,7 @@
 <script setup>
 import { ref, onMounted } from 'vue';
 import api from '../api/axios';
+import logo from '../assets/logo.png';
 
 const emit = defineEmits(['navigate', 'selectShop']);
 

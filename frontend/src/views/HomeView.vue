@@ -2,6 +2,7 @@
 import { ref, onMounted } from 'vue';
 import { useAuthStore } from '../store/useAuth';
 import api from '../api/axios';
+import logo from '../assets/logo.png';
 
 const emit = defineEmits(['navigate']);
 const authStore = useAuthStore();
@@ -38,11 +39,8 @@ onMounted(() => {
       <div class="absolute bg-blue-400 w-64 h-64 rounded-full filter blur-3xl opacity-20 -top-20 -right-20 pointer-events-none"></div>
       <div class="relative z-10">
         <div class="flex items-center justify-between mb-6">
-          <div class="flex items-center gap-2">
-            <div class="w-10 h-10 bg-white/20 backdrop-blur-sm text-white rounded-xl flex items-center justify-center text-lg shadow-sm">
-              <i class="fas fa-box-open"></i>
-            </div>
-            <span class="font-bold text-xl text-white tracking-tight font-heading">FastBox</span>
+          <div class="flex items-center">
+            <img :src="logo" alt="FastBox" class="h-10 w-auto brightness-0 invert">
           </div>
         </div>
         <h1 class="text-3xl font-extrabold text-white leading-tight">Что доставим <br> сегодня?</h1>

@@ -4,7 +4,6 @@ use App\Http\Controllers\Api\ShopController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\OrderController;
 use App\Http\Controllers\Api\TripController;
-use App\Http\Controllers\Api\KYCController;
 use App\Http\Controllers\Api\ProfileController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
@@ -35,12 +34,9 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/orders', [OrderController::class, 'store']);
     Route::post('/orders/{id}/accept', [OrderController::class, 'accept']);
     Route::post('/orders/{id}/complete', [OrderController::class, 'complete']);
+    Route::post('/orders/{id}/confirm-qr', [OrderController::class, 'confirmViaQr']);
     
     // Intercity Trips
     Route::get('/trips', [TripController::class, 'index']);
     Route::post('/trips', [TripController::class, 'store']);
-    
-    // KYC Verification
-    Route::post('/kyc/upload', [KYCController::class, 'uploadID']);
-    Route::post('/kyc/verify', [ProfileController::class, 'verify']);
 });

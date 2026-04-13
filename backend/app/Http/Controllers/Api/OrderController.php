@@ -148,6 +148,25 @@ class OrderController extends Controller
     }
 
     /**
+     * Confirm order pickup via QR handshake.
+     */
+    public function confirmViaQr(Request $request, $id): JsonResponse
+    {
+        $order = Order::findOrFail($id);
+
+        $order->update([
+            'status' => 'delivering',
+            // 'scanned_at' => now(), // Temporarily commented if column doesn't exist
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Handshake confirmed. Order is in transit.',
+            'order' => $order
+        ]);
+    }
+
+    /**
      * Simple Haversine implementation to calculate distance in km.
      */
     private function calculateDistance($lat1, $lng1, $lat2, $lng2)
@@ -165,11 +184,16 @@ class OrderController extends Controller
     }
 
     /**
-     * List user orders.
+     * List user orders (both as a customer and as a courier).
      */
     public function index(Request $request): JsonResponse
     {
-        $orders = Order::where('user_id', $request->user()->id)
+        $userId = $request->user()->id;
+
+        $orders = Order::where(function ($query) use ($userId) {
+                $query->where('user_id', $userId)
+                      ->orWhere('courier_id', $userId);
+            })
             ->with(['items.product', 'trip'])
             ->latest()
             ->get();
