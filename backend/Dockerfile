@@ -44,5 +44,5 @@ RUN chown -R www-data:www-data /var/www/storage /var/www/bootstrap/cache
 # Expose port (Railway dynamic port)
 EXPOSE 80
 
-# Start script
-CMD service nginx restart && php-fpm
+# Start script: Run PHP-FPM in background, then Nginx in foreground
+CMD php-fpm -D && nginx -g "daemon off;"
