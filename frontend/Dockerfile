@@ -1,12 +1,23 @@
-# Use Node.js LTS
-FROM node:20-alpine
-
-# Set working directory
+# Build stage
+FROM node:20-alpine as build-stage
 WORKDIR /app
+COPY package*.json ./
+RUN npm install
+COPY . .
+RUN npm run build
 
-# Install dependencies and start dev server with host 0.0.0.0 for Docker access
-# Note: npm install will run every time if we don't use volumes properly
-# but for MVP this is the most reliable way.
-CMD sh -c "npm install && npm run dev -- --host 0.0.0.0"
+# Production stage
+FROM nginx:stable-alpine as production-stage
+COPY --from=build-stage /app/dist /usr/share/nginx/html
+# Add custom nginx config to handle SPA routing (Vue Router)
+RUN echo 'server { \
+    listen 80; \
+    location / { \
+        root /usr/share/nginx/html; \
+        index index.html index.htm; \
+        try_files $uri $uri/ /index.html; \
+    } \
+}' > /etc/nginx/conf.d/default.conf
 
-EXPOSE 5173
+EXPOSE 80
+CMD ["nginx", "-g", "daemon off;"]

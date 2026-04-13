@@ -6,14 +6,12 @@ WORKDIR /var/www
 
 # Install system dependencies
 RUN apt-get update && apt-get install -y \
-    build-essential \
+    nginx \
     libpng-dev \
     libjpeg62-turbo-dev \
     libfreetype6-dev \
     locales \
     zip \
-    jpegoptim optipng pngquant gifsicle \
-    vim \
     unzip \
     git \
     curl \
@@ -22,7 +20,7 @@ RUN apt-get update && apt-get install -y \
     libzip-dev
 
 # Clear cache
-RUN apt-get clean && rm -rf /var/www/html
+RUN apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # Install PHP extensions
 RUN docker-php-ext-install pdo_mysql mbstring exif pcntl bcmath gd zip
@@ -30,9 +28,21 @@ RUN docker-php-ext-install pdo_mysql mbstring exif pcntl bcmath gd zip
 # Get latest Composer
 COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 
-# Set user
-# RUN useradd -G www-data,root -u 1000 -d /home/dev dev
-# USER dev
+# Copy project files
+COPY . /var/www
 
-EXPOSE 9000
-CMD ["php-fpm"]
+# Install PHP dependencies
+RUN composer install --no-dev --optimize-autoloader
+
+# Copy Nginx config
+COPY ./nginx-railway.conf /etc/nginx/sites-available/default
+RUN ln -sf /etc/nginx/sites-available/default /etc/nginx/sites-enabled/default
+
+# Permissions
+RUN chown -R www-data:www-data /var/www/storage /var/www/bootstrap/cache
+
+# Expose port (Railway dynamic port)
+EXPOSE 80
+
+# Start script
+CMD service nginx start && php-fpm
