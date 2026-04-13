@@ -44,8 +44,12 @@ COPY ./nginx-railway.conf /etc/nginx/conf.d/default.conf
 # Permissions
 RUN chown -R www-data:www-data /var/www/storage /var/www/bootstrap/cache
 
+# Copy Entrypoint
+COPY ./entrypoint.sh /usr/local/bin/entrypoint.sh
+RUN chmod +x /usr/local/bin/entrypoint.sh
+
 # Expose port (Railway dynamic port)
 EXPOSE 80
 
-# Start script
-CMD php-fpm -D && nginx -g "daemon off;"
+# Use the entrypoint script
+CMD ["/usr/local/bin/entrypoint.sh"]
