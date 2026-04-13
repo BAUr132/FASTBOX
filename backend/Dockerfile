@@ -34,6 +34,9 @@ COPY . /var/www
 # Install PHP dependencies
 RUN composer install --no-dev --optimize-autoloader
 
+# Copy PHP-FPM config
+COPY ./www.conf /usr/local/etc/php-fpm.d/www.conf
+
 # Copy Nginx config (overwrite EVERYTHING to be safe)
 RUN rm -rf /etc/nginx/sites-enabled/* /etc/nginx/sites-available/* /etc/nginx/conf.d/*
 COPY ./nginx-railway.conf /etc/nginx/conf.d/default.conf
@@ -44,5 +47,5 @@ RUN chown -R www-data:www-data /var/www/storage /var/www/bootstrap/cache
 # Expose port (Railway dynamic port)
 EXPOSE 80
 
-# Start script: Run PHP-FPM in background, then Nginx in foreground
+# Start script
 CMD php-fpm -D && nginx -g "daemon off;"
